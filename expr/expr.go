@@ -54,3 +54,34 @@ func (e Expr) Print(indent int) string {
 	}
 	return "HUH-SHOULD-NEVER-HAPPEN"
 }
+
+func (e Expr) ApplyQueryFilters(filters string) string {
+	//	space := strings.Repeat(" ", indent)
+	switch e.etype {
+	case etName:
+		return fmt.Sprintf("%s", e.Str)
+	case etFunc:
+		var args string
+		for _, a := range e.Args {
+			args += a.ApplyQueryFilters(filters) + ","
+		}
+		for k, v := range e.namedArgs {
+			args += k + "=" + v.ApplyQueryFilters(filters) + ","
+		}
+
+		if e.Str == "seriesByTag" {
+			args += filters
+		}
+
+		args = strings.TrimSuffix(args, ",")
+
+		return fmt.Sprintf("%s(%s)", e.Str, args)
+	case etFloat:
+		return fmt.Sprintf("%v", e.float)
+	case etInt:
+		return fmt.Sprintf("%v", e.int)
+	case etString:
+		return fmt.Sprintf("%q", e.Str)
+	}
+	return "HUH-SHOULD-NEVER-HAPPEN"
+}

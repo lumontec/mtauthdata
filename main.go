@@ -81,22 +81,19 @@ func RenderFiltering(h http.HandlerFunc) http.HandlerFunc {
 
 		if err != nil {
 			log.Fatal(err)
-			//			response.Write(ctx, response.NewError(http.StatusBadRequest, err.Error()))
 		}
+
+		rawquery := ""
 
 		for _, expr := range exprs {
-			log.Println(expr.Str)
+			rawquery += expr.ApplyQueryFilters("\"data:pr:ext:acl:grouptemp=~(" + grouptempfilters + ")\"")
+			// log.Println(expr.Print(0))
 		}
 
-		//		plan, err := expr.NewPlan(exprs, 0, 0, 800, true, nil)
-		//		if err != nil {
-		//			log.Fatal(err)
-		//		}
+		r.URL.RawQuery = "render?target=" + rawquery
 
-		log.Println(exprs)
-		r.URL.RawQuery += "&expr=data:pr:ext:acl:grouptemp=~(" + grouptempfilters + ")"
+		log.Println(r.URL.RawQuery)
 
-		log.Println(exprs)
 		h.ServeHTTP(w, r)
 	})
 }

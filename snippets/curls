@@ -1,0 +1,89 @@
+AUTH DATA:
+
+INFO:
+
+1- When iot data is removed from a group its meta-data is updated immediately on the casssandra index, but its removed from RAM only when the appropriate time span is elapsed
+
+
+
+SCRIPTS:
+
+
+Associate iot with group:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/metaTags/upsert"     -H 'Content-Type: application/json'     -d '{"metaTags": ["data:pr:ext:acl:group=group:dom:9dd9b8edfb012d7b0c5807d2b11d0eed/group:ou:e34ba21c74c289ba894b75ae6c76d22f"], "expressions": ["data:pr:int:creator=654951eb6c39c998793563f8622b8f89"]}'
+
+ps: iots are associated just with the groups that have the permission to access the data, if this permission is removed from the group all the associated iots are to be removed from the group
+
+
+Get all the metaTags:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/metaTags"
+
+ps: response:
+[{"metaTags":["data:pr:ext:acl:group=group:dom:9dd9b8edfb012d7b0c5807d2b11d0eed","data:pr:ext:acl:group=group:dom:9dd9b8edfb012d7b0c5807d2b11d0eed/group:ou:e34ba21c74c289ba894b75ae6c76d22f"],"expressions":["data:pr:int:creator=654951eb6c39c998793563f8622b8f89"]
+
+
+Filter tag queries by groups:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/tags/autoComplete/tags?expr=data:pr:ext:acl:group=~(^group:dom:9dd9b8edfb012d7b0c5807d2b11d0eed/group:ou:e34ba21c74c289ba894b75ae6c76d22f$)"
+
+ps: 
+the &exp= can filter using a regex on the value. If several different values are to be exactly matched for the same key, the regex form (^valuestring1$|^valuestring2$). Several expr= can be added to the request, they filter with an AND condition. For example:
+
+example:
+tags?expr=group=~(^group1$|^group2$)&expr=temp=~(^cold$)"
+"give me all tags of the data tagged with group=group1 OR group=group2 AND temp=cold"
+
+
+Complete request (group filtering and temp filtering):
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/tags/autoComplete/tags?expr=data:pr:ext:acl:group=~(^group:dom:9dd9b8edfb012d7b0c5807d2b11d0eed/group:ou:e34ba21c74c289ba894b75ae6c76d22f$)&expr=data:pr:int:acl:temp=~(^warm$)"
+
+
+Direct request to data with group and temp filtering:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/render?target=seriesByTag('name=~(^demotags.iot1.metric0$)','data:pr:ext:acl:group=~(^group:dom:9dd9b8edfb012d7b0c5807d2b11d0eed/group:ou:e34ba21c74c289ba894b75ae6c76d22f$)','data:pr:int:acl:temp=~(^warm$)')&from=-5min&until=now&format=json&maxDataPoints=653
+
+
+
+GROUPTEMPS WAY:
+
+Associate iot with group:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/metaTags/upsert" -H 'Content-Type: application/json' -d '{"metaTags": ["data:pr:ext:acl:group=group:ou:e34ba21c74c289ba894b75ae6c76d22f"], "expressions": ["data:pr:int:creator=654951eb6c39c998793563f8622b8f89"]}'
+
+
+Generate grouptemps for group:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/metaTags/upsert" -H 'Content-Type: application/json' -d '{"metaTags": ["data:pr:ext:acl:grouptemp=group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:hot"], "expressions": ["data:pr:int:acl:temp=hot", "data:pr:ext:acl:group=group:ou:e34ba21c74c289ba894b75ae6c76d22f"]}'
+
+
+Filter tag queries by groups:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/tags/autoComplete/tags?expr=data:pr:ext:acl:grouptemp=~(^group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:hot$)"
+
+
+Direct request to data with grouptemps filtering:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/render?target=seriesByTag('name=~(^demotags.iot1.metric0$)','data:pr:ext:acl:grouptemp=~(^group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:hot$)')&from=-5min&until=now&format=json&maxDataPoints=653
+
+
+BUGGATO !!!!! NON LO POSSO UTILIZZARE, NON FORNISCE RISPOSTA
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/render?target=seriesByTag('name=~(^demotags.iot1.metric0$)','data:pr:ext:acl:grouptemp=~(^group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:warm$)')&from=-5min&until=now&format=json&maxDataPoints=653"
+
+Sembrerebbe che non sia possibile taggare un tag esterno con un altro tag esterno. Query filtrate a piu` chiavi (e.g. name & grouptemp) forniscono sempre risultato nullo, anche se in realta` grouptemp da sola fornisce correttamente i dati richiesti
+
+
+
+
+GROUPTEMPS SIMPLIFIED:
+
+Hot data for the iot
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/metaTags/upsert"     -H 'Content-Type: application/json'     -d '{"metaTags": ["data:pr:ext:acl:grouptemp=group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:hot"], "expressions": ["data:pr:int:creator=654951eb6c39c998793563f8622b8f89", "data:pr:int:acl:temp=hot"]}'
+
+Warm data for the iot:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/metaTags/upsert"     -H 'Content-Type: application/json'     -d '{"metaTags": ["data:pr:ext:acl:grouptemp=group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:warm"], "expressions": ["data:pr:int:creator=654951eb6c39c998793563f8622b8f89", "data:pr:int:acl:temp=warm"]}'
+
+Cold data for the iot:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/metaTags/upsert"     -H 'Content-Type: application/json'     -d '{"metaTags": ["data:pr:ext:acl:grouptemp=group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:cold"], "expressions": ["data:pr:int:creator=654951eb6c39c998793563f8622b8f89", "data:pr:int:acl:temp=cold"]}'
+
+Now test is working ok:
+Direct request to data with grouptemps filtering:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/render?target=seriesByTag('name=~(^demotags.iot1.metric0$)','data:pr:ext:acl:grouptemp=~(^group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:hot$)')&from=-5min&until=now&format=json&maxDataPoints=653
+
+Filter tag queries by groups:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/tags/autoComplete/tags?expr=data:pr:ext:acl:grouptemp=~(^group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:hot$)"
+
+
