@@ -1,0 +1,1 @@
+ssh root@dev1.logbotiot.cloud  -L  6060:localhost:6060
