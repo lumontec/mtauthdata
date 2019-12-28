@@ -1,6 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -39,7 +43,7 @@ func TagsFiltering(h http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Println("FILTERING REQUEST TAGS:")
 
-		grouptemps := []string{"group:dom:e34ba21c74c289ba894b75ae6c76d22f:temp:hot", "group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:cold"}
+		grouptemps := []string{"group:dom:e34ba21c74c289ba894b75ae6c76d22f:temp:warm", "group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:warm"}
 
 		grouptempfilters := ""
 
@@ -62,7 +66,7 @@ func RenderFiltering(h http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Println("FILTERING REQUEST RENDER:")
 
-		grouptemps := []string{"group:dom:e34ba21c74c289ba894b75ae6c76d22f:temp:hot", "group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:cold"}
+		grouptemps := []string{"group:dom:e34ba21c74c289ba894b75ae6c76d22f:temp:warm", "group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:warm"}
 
 		grouptempfilters := ""
 
@@ -90,7 +94,7 @@ func RenderFiltering(h http.HandlerFunc) http.HandlerFunc {
 			rawquery += expr.ApplyQueryFilters("\"data:pr:ext:acl:grouptemp=~(" + grouptempfilters + ")\"")
 		}
 
-		r.URL.RawQuery = "render?target=" + rawquery
+		r.URL.RawQuery = "target=" + rawquery
 
 		log.Println(r.URL.RawQuery)
 
@@ -107,8 +111,65 @@ func ProxyMiddleware(p *httputil.ReverseProxy) func(http.ResponseWriter, *http.R
 }
 
 func CleanResponse(r *http.Response) error {
-	log.Println("MODIFYING RESPONSE FROM METRICTANK:")
-	log.Println(r)
 
+	type Point []float64
+
+	// type Point struct {
+	// 	Val float64 `json:"val,omitempty"`
+	// 	Ts  uint32  `json:"ts,omitempty"`
+	// }
+
+	type Serie struct {
+		Target     string            `json:"target,omitempty"` // for fetched data, set from models.Req.Target, i.e. the metric graphite key. for function output, whatever should be shown as target string (legend)
+		Datapoints []Point           `json:"datapoints,omitempty"`
+		Tags       map[string]string `json:"tags,omitempty"` // Must be set initially via call to `SetTags()`
+		Interval   uint32            `json:"interval,omitempty"`
+		QueryPatt  string            `json:"queryPatt,omitempty"` // to tie series back to request it came from. e.g. foo.bar.*, or if series outputted by func it would be e.g. scale(foo.bar.*,0.123456)
+		QueryFrom  uint32            `json:"queryFrom,omitempty"` // to tie series back to request it came from
+		QueryTo    uint32            `json:"queryTo,omitempty"`   // to tie series back to request it came from
+	}
+
+	type Series []Serie
+
+	b, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		fmt.Printf("Error reading response body %s\n", err)
+		return err
+	}
+
+	var mtResp Series
+
+	if err := json.Unmarshal(b, &mtResp); /*json.NewDecoder(resp.Body).Decode(&orgResp);*/ err != nil {
+		fmt.Println(err)
+		//fmt.Errorf(err.Error())
+	}
+
+	log.Println(mtResp)
+	log.Println("mtResp")
+
+	// buf := bytes.NewBufferString("Monkey")
+	// buf.Write(b)
+	// r.Body = ioutil.NopCloser(buf)
+	// r.Header["Content-Length"] = []string{fmt.Sprint(buf.Len())}
 	return nil
+
+	// var responseContent []interface{}
+	// err := parseResponse(r, &responseContent)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// log.Println(responseContent)
+	return nil
+}
+
+func parseResponse(res *http.Response, unmarshalStruct *[]interface{}) error {
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
+	res.Body.Close()
+
+	res.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+	return json.Unmarshal(body, unmarshalStruct)
 }
