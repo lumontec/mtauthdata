@@ -139,18 +139,61 @@ func CleanResponse(r *http.Response) error {
 
 	var mtResp Series
 
-	if err := json.Unmarshal(b, &mtResp); /*json.NewDecoder(resp.Body).Decode(&orgResp);*/ err != nil {
+	if err := json.Unmarshal(b, &mtResp); err != nil {
 		fmt.Println(err)
 		//fmt.Errorf(err.Error())
 	}
 
-	log.Println(mtResp)
-	log.Println("mtResp")
+	// log.Println(mtResp)
 
-	// buf := bytes.NewBufferString("Monkey")
-	// buf.Write(b)
-	// r.Body = ioutil.NopCloser(buf)
-	// r.Header["Content-Length"] = []string{fmt.Sprint(buf.Len())}
+	// Cleaning target
+	s := strings.Split(mtResp[0].Target, ";")
+	mtResp[0].Target = s[0]
+
+	// Cleaning tags
+	for k, v := range mtResp[0].Tags {
+		str := strings.Split(k, ":")
+		for _, s := range str {
+			switch s {
+			case "name":
+				continue
+			case "data":
+				continue
+			case "ext":
+				continue
+			case "int":
+				continue
+			case "pu":
+				continue
+			case "cust":
+				delete(mtResp[0].Tags, k)
+				mtResp[0].Tags[s] = v
+				continue
+			case "pr":
+				delete(mtResp[0].Tags, k)
+				break
+			case "acl":
+				delete(mtResp[0].Tags, k)
+				break
+
+			default:
+				delete(mtResp[0].Tags, k)
+				break
+			}
+		}
+	}
+
+	log.Println(mtResp)
+
+	jsonData, err := json.Marshal(mtResp)
+	if err != nil {
+		log.Println(err)
+	}
+
+	buf := bytes.NewBufferString("")
+	buf.Write(jsonData)
+	r.Body = ioutil.NopCloser(buf)
+	r.Header["Content-Length"] = []string{fmt.Sprint(buf.Len())}
 	return nil
 
 	// var responseContent []interface{}
@@ -160,7 +203,6 @@ func CleanResponse(r *http.Response) error {
 	// }
 
 	// log.Println(responseContent)
-	return nil
 }
 
 func parseResponse(res *http.Response, unmarshalStruct *[]interface{}) error {
