@@ -88,13 +88,16 @@ func RenderFiltering(h http.HandlerFunc) http.HandlerFunc {
 			log.Fatal(err)
 		}
 
-		rawquery := ""
+		targetstr := ""
 
 		for _, expr := range exprs {
-			rawquery += expr.ApplyQueryFilters("\"data:pr:ext:acl:grouptemp=~(" + grouptempfilters + ")\"")
+			targetstr += expr.ApplyQueryFilters("\"data:pr:ext:acl:grouptemp=~(" + grouptempfilters + ")\"")
 		}
 
-		r.URL.RawQuery = "target=" + rawquery
+		urlParsed.Del("target")            // Delete target key
+		urlParsed.Add("target", targetstr) // Adds recomputed target
+
+		r.URL.RawQuery = urlParsed.Encode()
 
 		log.Println(r.URL.RawQuery)
 
@@ -111,6 +114,8 @@ func ProxyMiddleware(p *httputil.ReverseProxy) func(http.ResponseWriter, *http.R
 }
 
 func CleanResponse(r *http.Response) error {
+
+	log.Println("CLEANING RESPONSE:")
 
 	type Point []float64
 
@@ -144,17 +149,74 @@ func CleanResponse(r *http.Response) error {
 		//fmt.Errorf(err.Error())
 	}
 
-	// log.Println(mtResp)
+	log.Println(mtResp)
+
+	// // Cleaning target
+	// s := strings.Split(mtResp[0].Target, ";")
+	// mtResp[0].Target = s[0]
 
 	// Cleaning target
-	s := strings.Split(mtResp[0].Target, ";")
-	mtResp[0].Target = s[0]
+
+	cleantarget := ""
+
+	semistr := strings.Split(mtResp[0].Target, ";")
+	for _, semis := range semistr {
+		colsemistr := strings.Split(semis, ":")
+		for i := 0; i < len(colsemistr); i++ {
+			switch colsemistr[i] {
+			case "pu":
+				continue
+			case "pr":
+				continue
+			case "data":
+				continue
+			case "temp":
+				i++ // jump also next filed
+				continue
+			case "ext":
+				continue
+			case "int":
+				continue
+			case "acl":
+				continue
+			case "ou":
+				i++ // jump also next filed
+				continue
+			case "cust":
+				cleantarget += ";" + colsemistr[i+1]
+				i++ // jump also next filed
+				continue
+			default: // all the unmatched slices are left unmatched
+				eqcolssemistr := strings.Split(colsemistr[i], "=")
+				for j := 0; j < len(eqcolssemistr); j++ {
+					switch eqcolssemistr[j] {
+					case "grouptemp":
+						j++ // jump also the value
+						continue
+					case "temp":
+						j++ // jump also the value
+						continue
+					case "creator":
+						cleantarget += ";creator="
+						continue
+					default: // all the unmatched slices are left unmatched
+						cleantarget += eqcolssemistr[j]
+						break
+					}
+				}
+				break
+			}
+
+		}
+	}
+
+	mtResp[0].Target = cleantarget
 
 	// Cleaning tags
 	for k, v := range mtResp[0].Tags {
-		str := strings.Split(k, ":")
-		for _, s := range str {
-			switch s {
+		tagstr := strings.Split(k, ":")
+		for i := 0; i < len(tagstr); i++ {
+			switch tagstr[i] {
 			case "name":
 				continue
 			case "data":
@@ -167,7 +229,7 @@ func CleanResponse(r *http.Response) error {
 				continue
 			case "cust":
 				delete(mtResp[0].Tags, k)
-				mtResp[0].Tags[s] = v
+				mtResp[0].Tags[tagstr[i+1]] = v
 				continue
 			case "pr":
 				delete(mtResp[0].Tags, k)
@@ -205,7 +267,7 @@ func CleanResponse(r *http.Response) error {
 	// log.Println(responseContent)
 }
 
-func parseResponse(res *http.Response, unmarshalStruct *[]interface{}) error {
+func parseResponse(res *http.Response, unmarshalStruct *interface{}) error {
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return err
