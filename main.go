@@ -12,28 +12,8 @@ import (
 	"strings"
 
 	"gitlab.com/lbauthdata/expr"
+	"gitlab.com/lbauthdata/model"
 )
-
-type Point []float64
-
-// type Point struct {
-// 	Val float64 `json:"val,omitempty"`
-// 	Ts  uint32  `json:"ts,omitempty"`
-// }
-
-type Serie struct {
-	Target     string            `json:"target,omitempty"` // for fetched data, set from models.Req.Target, i.e. the metric graphite key. for function output, whatever should be shown as target string (legend)
-	Datapoints []Point           `json:"datapoints,omitempty"`
-	Tags       map[string]string `json:"tags,omitempty"` // Must be set initially via call to `SetTags()`
-	Interval   uint32            `json:"interval,omitempty"`
-	QueryPatt  string            `json:"queryPatt,omitempty"` // to tie series back to request it came from. e.g. foo.bar.*, or if series outputted by func it would be e.g. scale(foo.bar.*,0.123456)
-	QueryFrom  uint32            `json:"queryFrom,omitempty"` // to tie series back to request it came from
-	QueryTo    uint32            `json:"queryTo,omitempty"`   // to tie series back to request it came from
-}
-
-type Series []Serie
-
-type Tags []string
 
 func main() {
 	remote, err := url.Parse("http://localhost:6060")
@@ -147,7 +127,7 @@ func CleanResponse(r *http.Response) error {
 
 	switch r.Request.URL.Path {
 	case "/render":
-		var mtRespRender Series
+		var mtRespRender model.Series
 
 		if err := json.Unmarshal(b, &mtRespRender); err != nil {
 			fmt.Println(err)
@@ -163,7 +143,7 @@ func CleanResponse(r *http.Response) error {
 		}
 
 	case "/tags/autoComplete/tags":
-		var mtRespTags Tags
+		var mtRespTags model.Tags
 
 		if err := json.Unmarshal(b, &mtRespTags); err != nil {
 			fmt.Println(err)
@@ -185,7 +165,7 @@ func CleanResponse(r *http.Response) error {
 		}
 
 	case "/tags/autoComplete/values":
-		var mtRespTags Tags
+		var mtRespTags model.Tags
 
 		if err := json.Unmarshal(b, &mtRespTags); err != nil {
 			fmt.Println(err)
@@ -225,7 +205,7 @@ func CleanResponse(r *http.Response) error {
 	// log.Println(responseContent)
 }
 
-func cleanRender(mtResp *Serie) error {
+func cleanRender(mtResp *model.Serie) error {
 	cleantarget := ""
 
 	semistr := strings.Split(mtResp.Target, ";")
@@ -317,7 +297,7 @@ func cleanRender(mtResp *Serie) error {
 	return nil
 }
 
-func cleanTags(mtResp Tags) (err error, cleantags []string) {
+func cleanTags(mtResp model.Tags) (err error, cleantags []string) {
 
 	// Cleaning tags
 	for _, tag := range mtResp {
