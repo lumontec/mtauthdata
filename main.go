@@ -14,6 +14,27 @@ import (
 	"gitlab.com/lbauthdata/expr"
 )
 
+type Point []float64
+
+// type Point struct {
+// 	Val float64 `json:"val,omitempty"`
+// 	Ts  uint32  `json:"ts,omitempty"`
+// }
+
+type Serie struct {
+	Target     string            `json:"target,omitempty"` // for fetched data, set from models.Req.Target, i.e. the metric graphite key. for function output, whatever should be shown as target string (legend)
+	Datapoints []Point           `json:"datapoints,omitempty"`
+	Tags       map[string]string `json:"tags,omitempty"` // Must be set initially via call to `SetTags()`
+	Interval   uint32            `json:"interval,omitempty"`
+	QueryPatt  string            `json:"queryPatt,omitempty"` // to tie series back to request it came from. e.g. foo.bar.*, or if series outputted by func it would be e.g. scale(foo.bar.*,0.123456)
+	QueryFrom  uint32            `json:"queryFrom,omitempty"` // to tie series back to request it came from
+	QueryTo    uint32            `json:"queryTo,omitempty"`   // to tie series back to request it came from
+}
+
+type Series []Serie
+
+type Tags []string
+
 func main() {
 	remote, err := url.Parse("http://localhost:6060")
 	if err != nil {
@@ -114,27 +135,7 @@ func ProxyMiddleware(p *httputil.ReverseProxy) func(http.ResponseWriter, *http.R
 }
 
 func CleanResponse(r *http.Response) error {
-
 	log.Println("CLEANING RESPONSE:")
-
-	type Point []float64
-
-	// type Point struct {
-	// 	Val float64 `json:"val,omitempty"`
-	// 	Ts  uint32  `json:"ts,omitempty"`
-	// }
-
-	type Serie struct {
-		Target     string            `json:"target,omitempty"` // for fetched data, set from models.Req.Target, i.e. the metric graphite key. for function output, whatever should be shown as target string (legend)
-		Datapoints []Point           `json:"datapoints,omitempty"`
-		Tags       map[string]string `json:"tags,omitempty"` // Must be set initially via call to `SetTags()`
-		Interval   uint32            `json:"interval,omitempty"`
-		QueryPatt  string            `json:"queryPatt,omitempty"` // to tie series back to request it came from. e.g. foo.bar.*, or if series outputted by func it would be e.g. scale(foo.bar.*,0.123456)
-		QueryFrom  uint32            `json:"queryFrom,omitempty"` // to tie series back to request it came from
-		QueryTo    uint32            `json:"queryTo,omitempty"`   // to tie series back to request it came from
-	}
-
-	type Series []Serie
 
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -142,24 +143,92 @@ func CleanResponse(r *http.Response) error {
 		return err
 	}
 
-	var mtResp Series
+	var jsonResp []byte
 
-	if err := json.Unmarshal(b, &mtResp); err != nil {
-		fmt.Println(err)
-		//fmt.Errorf(err.Error())
+	switch r.Request.URL.Path {
+	case "/render":
+		var mtRespRender Series
+
+		if err := json.Unmarshal(b, &mtRespRender); err != nil {
+			fmt.Println(err)
+		}
+
+		cleanRender(&mtRespRender[0])
+
+		log.Println(mtRespRender)
+
+		jsonResp, err = json.Marshal(mtRespRender)
+		if err != nil {
+			log.Println(err)
+		}
+
+	case "/tags/autoComplete/tags":
+		var mtRespTags Tags
+
+		if err := json.Unmarshal(b, &mtRespTags); err != nil {
+			fmt.Println(err)
+		}
+
+		err, mtRespTagsClean := cleanTags(mtRespTags)
+
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		cleanTags(mtRespTags)
+
+		log.Println(mtRespTags)
+
+		jsonResp, err = json.Marshal(mtRespTagsClean)
+		if err != nil {
+			log.Println(err)
+		}
+
+	case "/tags/autoComplete/values":
+		var mtRespTags Tags
+
+		if err := json.Unmarshal(b, &mtRespTags); err != nil {
+			fmt.Println(err)
+		}
+
+		err, mtRespTagsClean := cleanTags(mtRespTags)
+
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		cleanTags(mtRespTags)
+
+		log.Println(mtRespTags)
+
+		jsonResp, err = json.Marshal(mtRespTagsClean)
+		if err != nil {
+			log.Println(err)
+		}
+
+		// defalut:
+		// 	log.Fatal("Response type not matched")
 	}
 
-	log.Println(mtResp)
+	buf := bytes.NewBufferString("")
+	buf.Write(jsonResp)
+	r.Body = ioutil.NopCloser(buf)
+	r.Header["Content-Length"] = []string{fmt.Sprint(buf.Len())}
+	return nil
 
-	// // Cleaning target
-	// s := strings.Split(mtResp[0].Target, ";")
-	// mtResp[0].Target = s[0]
+	// var responseContent []interface{}
+	// err := parseResponse(r, &responseContent)
+	// if err != nil {
+	// 	return err
+	// }
 
-	// Cleaning target
+	// log.Println(responseContent)
+}
 
+func cleanRender(mtResp *Serie) error {
 	cleantarget := ""
 
-	semistr := strings.Split(mtResp[0].Target, ";")
+	semistr := strings.Split(mtResp.Target, ";")
 	for _, semis := range semistr {
 		colsemistr := strings.Split(semis, ":")
 		for i := 0; i < len(colsemistr); i++ {
@@ -210,10 +279,10 @@ func CleanResponse(r *http.Response) error {
 		}
 	}
 
-	mtResp[0].Target = cleantarget
+	mtResp.Target = cleantarget
 
 	// Cleaning tags
-	for k, v := range mtResp[0].Tags {
+	for k, v := range mtResp.Tags {
 		tagstr := strings.Split(k, ":")
 		for i := 0; i < len(tagstr); i++ {
 			switch tagstr[i] {
@@ -228,43 +297,66 @@ func CleanResponse(r *http.Response) error {
 			case "pu":
 				continue
 			case "cust":
-				delete(mtResp[0].Tags, k)
-				mtResp[0].Tags[tagstr[i+1]] = v
+				delete(mtResp.Tags, k)
+				mtResp.Tags[tagstr[i+1]] = v
 				continue
 			case "pr":
-				delete(mtResp[0].Tags, k)
+				delete(mtResp.Tags, k)
 				break
 			case "acl":
-				delete(mtResp[0].Tags, k)
+				delete(mtResp.Tags, k)
 				break
 
 			default:
-				delete(mtResp[0].Tags, k)
+				delete(mtResp.Tags, k)
 				break
 			}
 		}
 	}
 
-	log.Println(mtResp)
+	return nil
+}
 
-	jsonData, err := json.Marshal(mtResp)
-	if err != nil {
-		log.Println(err)
+func cleanTags(mtResp Tags) (err error, cleantags []string) {
+
+	// Cleaning tags
+	for _, tag := range mtResp {
+		tagstr := strings.Split(tag, ":")
+		for j := 0; j < len(tagstr); j++ {
+			switch tagstr[j] {
+			case "name":
+				cleantags = append(cleantags, tagstr[j])
+				continue
+			case "data":
+				continue
+			case "ext":
+				continue
+			case "int":
+				continue
+			case "pu":
+				continue
+			case "cust":
+				// cleantags = append(cleantags, tagstr[j])
+				continue
+			case "pr":
+				continue
+			case "acl":
+				continue
+			case "creator":
+				continue
+			case "temp":
+				continue
+			case "grouptemp":
+				continue
+
+			default:
+				cleantags = append(cleantags, tagstr[j])
+				continue
+			}
+		}
 	}
 
-	buf := bytes.NewBufferString("")
-	buf.Write(jsonData)
-	r.Body = ioutil.NopCloser(buf)
-	r.Header["Content-Length"] = []string{fmt.Sprint(buf.Len())}
-	return nil
-
-	// var responseContent []interface{}
-	// err := parseResponse(r, &responseContent)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// log.Println(responseContent)
+	return nil, cleantags
 }
 
 func parseResponse(res *http.Response, unmarshalStruct *interface{}) error {
