@@ -56,6 +56,20 @@ func TagsFiltering(h http.HandlerFunc) http.HandlerFunc {
 
 		grouptempfilters = strings.TrimSuffix(grouptempfilters, "|")
 
+		switch r.URL.Path {
+		case "/tags/autoComplete/values":
+			parts := strings.Split(r.URL.RawQuery, "&")
+			if parts[0] != "tag=name" {
+				subparts := strings.Split(parts[0], "=")
+				r.URL.RawQuery = "tag=data:pu:int:cust:" + subparts[1] + "&" + parts[1]
+			}
+		case "/tags/autoComplete/tags":
+			if r.URL.RawQuery != "" && r.URL.RawQuery != "tagPrefix=n" && r.URL.RawQuery != "tagPrefix=na" && r.URL.RawQuery != "tagPrefix=nam" && r.URL.RawQuery != "tagPrefix=name" {
+				parts := strings.Split(r.URL.RawQuery, "=")
+				r.URL.RawQuery = parts[0] + "=data:pu:int:cust:" + parts[1]
+			}
+		}
+
 		r.URL.RawQuery += "&expr=data:pr:ext:acl:grouptemp=~(" + grouptempfilters + ")"
 
 		log.Println(r)
