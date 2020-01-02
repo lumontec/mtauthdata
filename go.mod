@@ -13,6 +13,8 @@ require (
 	github.com/grafana/globalconf v0.0.0-20181214112547-7a1aae0695d9 // indirect
 	github.com/grafana/metrictank v0.13.1
 	github.com/hashicorp/memberlist v0.1.5 // indirect
+	github.com/jackc/pgtype v1.0.2
+	github.com/jackc/pgx/v4 v4.1.2
 	github.com/kisielk/og-rek v1.0.0 // indirect
 	github.com/opentracing/opentracing-go v1.1.0 // indirect
 	github.com/pelletier/go-toml v1.6.0 // indirect

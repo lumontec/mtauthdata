@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -9,23 +10,131 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"strings"
+
+	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v4"
 
 	"gitlab.com/lbauthdata/expr"
 	"gitlab.com/lbauthdata/model"
 )
 
 func main() {
+
+	// Prepare remote url for request proxying
 	remote, err := url.Parse("http://localhost:6060")
 	if err != nil {
 		panic(err)
 	}
 
+	// initialize db connection
+	conn, err := pgx.Connect(context.Background(), "user=keycloak password=password host=172.10.4.6 port=5432 database=lbauth sslmode=disable")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to connection to database: %v\n", err)
+		os.Exit(1)
+	}
+	defer conn.Close(context.Background())
+
+	// var id int64
+	// var group_uuid pgtype.UUID
+	// var role_uuid pgtype.UUID
+	// Send the query to the server. The returned rows MUST be closed
+	// before conn can be used again.
+	rows, err := conn.Query(context.Background(),
+		`SELECT 
+			roles_group_mapping.group_uuid,
+			bool_or (roles.admin_iots) AS admin_iots,
+			bool_or (roles.view_iots) AS view_iots,
+			bool_or (roles.configure_iots) AS configure_iots,
+			bool_or (roles.vpn_iots) AS vpn_iots,
+			bool_or (roles.webpage_iots) AS webpage_iots,
+			bool_or (roles.hmi_iots) AS hmi_iots,
+			bool_or (roles.data_admin) AS data_admin,
+			bool_or (roles.data_read) AS data_read,
+			bool_or (roles.data_cold_read) AS data_cold_read,
+			bool_or (roles.data_warm_read) AS data_warm_read,
+			bool_or (roles.data_hot_read) AS data_hot_read,
+			bool_or (roles.services_admin) AS services_admin,
+			bool_or (roles.billing_admin) AS billing_admin,
+			bool_or (roles.org_admin) AS org_admin
+		FROM	roles_group_mapping
+		INNER JOIN roles ON roles_group_mapping.role_uuid = roles.uuid AND (
+			group_uuid = 'e694ddf2-1790-addd-0f57-bc23b9d47fa3' OR 
+			group_uuid = '0dbd3c3e-0b44-4a4e-aa32-569f8951dc79' OR 
+			group_uuid = '5033357b-25f3-0124-180c-51029be60114' OR
+			group_uuid = '521db0c7-78e9-36b8-a95b-da4ba8fe7f9e' )
+		GROUP BY roles_group_mapping.group_uuid;`)
+	if err != nil {
+		fmt.Println(err)
+	}
+	// rows.Close is called by rows.Next when all rows are read
+	// or an error occurs in Next or Scan. So it may optionally be
+	// omitted if nothing in the rows.Next loop can panic. It is
+	// safe to close rows multiple times.
+	defer rows.Close()
+
+	// var sum int32
+
+	// Iterate through the result set
+	for rows.Next() {
+
+		var group_uuid pgtype.UUID
+		var admin_iots pgtype.Bool
+		var view_iots pgtype.Bool
+		var configure_iots pgtype.Bool
+		var vpn_iots pgtype.Bool
+		var webpage_iots pgtype.Bool
+		var hmi_iots pgtype.Bool
+		var data_admin pgtype.Bool
+		var data_read pgtype.Bool
+		var data_cold_read pgtype.Bool
+		var data_warm_read pgtype.Bool
+		var data_hot_read pgtype.Bool
+		var services_admin pgtype.Bool
+		var billing_admin pgtype.Bool
+		var org_admin pgtype.Bool
+
+		err = rows.Scan(
+			&group_uuid,
+			&admin_iots,
+			&view_iots,
+			&configure_iots,
+			&vpn_iots,
+			&webpage_iots,
+			&hmi_iots,
+			&data_admin,
+			&data_read,
+			&data_cold_read,
+			&data_warm_read,
+			&data_hot_read,
+			&services_admin,
+			&billing_admin,
+			&org_admin)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		fmt.Println(rows.Values())
+		uuid_value, _ := group_uuid.Value()
+		vpn_value, _ := vpn_iots.Value()
+		fmt.Println(uuid_value)
+		fmt.Println(vpn_value)
+		// sum += id
+	}
+
+	// Any errors encountered by rows.Next or rows.Scan will be returned here
+	if rows.Err() != nil {
+		fmt.Println(err)
+	}
+
+	return
+
 	proxy := httputil.NewSingleHostReverseProxy(remote)
 	proxy.ModifyResponse = CleanResponse
-	http.HandleFunc("/tags/autoComplete/tags", LogMiddleware(TagsFiltering(ProxyMiddleware(proxy))))
-	http.HandleFunc("/tags/autoComplete/values", LogMiddleware(TagsFiltering(ProxyMiddleware(proxy))))
-	http.HandleFunc("/render", LogMiddleware(RenderFiltering(ProxyMiddleware(proxy))))
+	http.HandleFunc("/tags/autoComplete/tags", LogMiddleware(TagsFilteringMiddleware(ProxyMiddleware(proxy))))
+	http.HandleFunc("/tags/autoComplete/values", LogMiddleware(TagsFilteringMiddleware(ProxyMiddleware(proxy))))
+	http.HandleFunc("/render", LogMiddleware(RenderFilteringMiddleware(ProxyMiddleware(proxy))))
 	err = http.ListenAndServe(":9001", nil)
 	if err != nil {
 		panic(err)
@@ -40,7 +149,16 @@ func LogMiddleware(h http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
-func TagsFiltering(h http.HandlerFunc) http.HandlerFunc {
+func GroupPermissionsMiddleware(h http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Println("GATHERING PERMSSIONS FROM USER GROUPS:")
+
+		log.Println(r)
+		h.ServeHTTP(w, r)
+	})
+}
+
+func TagsFilteringMiddleware(h http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Println("FILTERING REQUEST TAGS:")
 
@@ -77,7 +195,7 @@ func TagsFiltering(h http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
-func RenderFiltering(h http.HandlerFunc) http.HandlerFunc {
+func RenderFilteringMiddleware(h http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Println("FILTERING REQUEST RENDER:")
 
