@@ -105,7 +105,7 @@ func (l *lbDataAuthzProxy) createServerRouting() *chi.Mux {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
-	//	r.Use(middleware.Recoverer)  // This middleware avoids crash on panics ! By now I want to crash
+	r.Use(middleware.Recoverer) // This middleware avoids crash on panics ! By now I want to crash
 
 	// Set a timeout value on the request context (ctx), that will signal
 	// through ctx.Done() that the request has timed out and further

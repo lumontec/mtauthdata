@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -117,6 +116,7 @@ func (l *lbDataAuthzProxy) GroupPermissionsMiddleware(h http.HandlerFunc) http.H
 
 			if err != nil {
 				l.logger.Error("error scanning rows:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
+				panic(err)
 			}
 
 			group_uuid.AssignTo(&groupMap.Group_uuid)
@@ -217,13 +217,13 @@ func (l *lbDataAuthzProxy) RenderFilteringMiddleware(h http.HandlerFunc) http.Ha
 		urlParsed, err := url.ParseQuery(r.URL.RawQuery)
 
 		if err != nil {
-			log.Fatal(err)
+			panic(err)
 		}
 
 		exprs, err := expr.ParseMany(urlParsed["target"])
 
 		if err != nil {
-			log.Fatal(err)
+			panic(err)
 		}
 
 		targetstr := ""
@@ -236,7 +236,6 @@ func (l *lbDataAuthzProxy) RenderFilteringMiddleware(h http.HandlerFunc) http.Ha
 		urlParsed.Add("target", targetstr) // Adds recomputed target
 
 		r.URL.RawQuery = urlParsed.Encode()
-
 		l.logger.Info("filtered request /render:", zap.String("RawQuery:", r.URL.RawQuery), zap.String("reqid:", reqId))
 
 		h.ServeHTTP(w, r)
