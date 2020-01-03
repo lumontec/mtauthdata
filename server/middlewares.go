@@ -12,16 +12,11 @@ import (
 	"go.uber.org/zap"
 )
 
-//func (l *lbDataAuthzProxy) LogMiddleware(h http.HandlerFunc) http.HandlerFunc {
-//	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-//		//		l.logger.Info("LOGGING INPUT:", zap.Reflect("request:", r))
-//		log.Println("request:", r)
-//		h.ServeHTTP(w, r)
-//	})
-//}
-
 //func GroupPermissionsMiddleware(h http.HandlerFunc) http.HandlerFunc {
 //	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// reqId := middleware.GetReqID(r.Context())
+// log.Println(r.Context())
+
 //		log.Println("GATHERING PERMSSIONS FROM USER GROUPS:")
 //
 //		// initialize db connection
@@ -156,8 +151,8 @@ import (
 func (l *lbDataAuthzProxy) TagsFilteringMiddleware(h http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		reqid := middleware.GetReqID(r.Context())
-		log.Println(r.Context())
+		reqId := middleware.GetReqID(r.Context())
+
 		l.logger.Info("pre-filter request /tags:", zap.String("RawQuery:", r.URL.RawQuery), zap.String("reqid:", reqId))
 
 		grouptemps := []string{"group:dom:e34ba21c74c289ba894b75ae6c76d22f:temp:warm", "group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:warm"}
@@ -188,7 +183,7 @@ func (l *lbDataAuthzProxy) TagsFilteringMiddleware(h http.HandlerFunc) http.Hand
 
 		r.URL.RawQuery += "&expr=data:pr:ext:acl:grouptemp=~(" + grouptempfilters + ")"
 
-		l.logger.Info("filtered request /tags:", zap.String("RawQuery:", r.URL.RawQuery))
+		l.logger.Info("filtered request /tags:", zap.String("RawQuery:", r.URL.RawQuery), zap.String("reqid:", reqId))
 		h.ServeHTTP(w, r)
 	})
 }
@@ -196,7 +191,9 @@ func (l *lbDataAuthzProxy) TagsFilteringMiddleware(h http.HandlerFunc) http.Hand
 func (l *lbDataAuthzProxy) RenderFilteringMiddleware(h http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		l.logger.Info("pre-filter request /render:", zap.String("RawQuery:", r.URL.RawQuery))
+		reqId := middleware.GetReqID(r.Context())
+
+		l.logger.Info("pre-filter request /render:", zap.String("RawQuery:", r.URL.RawQuery), zap.String("reqid:", reqId))
 
 		grouptemps := []string{"group:dom:e34ba21c74c289ba894b75ae6c76d22f:temp:warm", "group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:warm"}
 
@@ -231,12 +228,14 @@ func (l *lbDataAuthzProxy) RenderFilteringMiddleware(h http.HandlerFunc) http.Ha
 
 		r.URL.RawQuery = urlParsed.Encode()
 
-		l.logger.Info("filtered request /render:", zap.String("RawQuery:", r.URL.RawQuery))
+		l.logger.Info("filtered request /render:", zap.String("RawQuery:", r.URL.RawQuery), zap.String("reqid:", reqId))
+
 		h.ServeHTTP(w, r)
 	})
 }
 
 func (l *lbDataAuthzProxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
-	l.logger.Info("sending request to metrictank")
+	reqId := middleware.GetReqID(r.Context())
+	l.logger.Info("sending request to metrictank", zap.String("reqid:", reqId))
 	l.reverseproxy.ServeHTTP(w, r)
 }

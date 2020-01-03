@@ -123,6 +123,8 @@ func createLogger(config *Config) (*zap.Logger, error) {
 
 func (l *lbDataAuthzProxy) CleanResponse(r *http.Response) error {
 
+	reqId := middleware.GetReqID(r.Request.Context())
+
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		l.logger.Error("Error reading MT response body", zap.String("error", err.Error()))
@@ -140,11 +142,11 @@ func (l *lbDataAuthzProxy) CleanResponse(r *http.Response) error {
 			return err
 		}
 
-		l.logger.Info("pre-clean response:", zap.Any("/render", mtRespRender))
+		l.logger.Info("pre-clean response:", zap.Any("/render", mtRespRender), zap.String("reqid:", reqId))
 
 		cleanRender(&mtRespRender[0])
 
-		l.logger.Info("cleaned response:", zap.Any("/render", mtRespRender))
+		l.logger.Info("cleaned response:", zap.Any("/render", mtRespRender), zap.String("reqid:", reqId))
 
 		jsonResp, err = json.Marshal(mtRespRender)
 		if err != nil {
@@ -160,7 +162,7 @@ func (l *lbDataAuthzProxy) CleanResponse(r *http.Response) error {
 			return err
 		}
 
-		l.logger.Info("pre-clean response:", zap.Any("/tags/autoComplete/tags", mtRespTags))
+		l.logger.Info("pre-clean response:", zap.Any("/tags/autoComplete/tags", mtRespTags), zap.String("reqid:", reqId))
 
 		err, mtRespTagsClean := cleanTags(mtRespTags)
 		if err != nil {
@@ -168,7 +170,7 @@ func (l *lbDataAuthzProxy) CleanResponse(r *http.Response) error {
 			return err
 		}
 
-		l.logger.Info("cleaned response:", zap.Any("/tags/autoComplete/tags", mtRespTagsClean))
+		l.logger.Info("cleaned response:", zap.Any("/tags/autoComplete/tags", mtRespTagsClean), zap.String("reqid:", reqId))
 
 		jsonResp, err = json.Marshal(mtRespTagsClean)
 		if err != nil {
@@ -184,14 +186,14 @@ func (l *lbDataAuthzProxy) CleanResponse(r *http.Response) error {
 			return err
 		}
 
-		l.logger.Info("pre-clean response:", zap.Any("/tags/autoComplete/values", mtRespTags))
+		l.logger.Info("pre-clean response:", zap.Any("/tags/autoComplete/values", mtRespTags), zap.String("reqid:", reqId))
 
 		err, mtRespTagsClean := cleanTags(mtRespTags)
 		if err != nil {
 			l.logger.Error("Error cleaning MT response tag values", zap.String("error", err.Error()))
 		}
 
-		l.logger.Info("cleaned response:", zap.Any("/tags/autoComplete/values", mtRespTagsClean))
+		l.logger.Info("cleaned response:", zap.Any("/tags/autoComplete/values", mtRespTagsClean), zap.String("reqid:", reqId))
 
 		jsonResp, err = json.Marshal(mtRespTagsClean)
 		if err != nil {
