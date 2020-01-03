@@ -9,6 +9,7 @@ require (
 	github.com/dgryski/go-jump v0.0.0-20170409065014-e1f439676b57 // indirect
 	github.com/dgryski/go-linlog v0.0.0-20180207191225-edcf2dfd90ff // indirect
 	github.com/glacjay/goini v0.0.0-20161120062552-fd3024d87ee2 // indirect
+	github.com/go-chi/chi v4.0.2+incompatible
 	github.com/go-macaron/binding v1.0.1 // indirect
 	github.com/grafana/globalconf v0.0.0-20181214112547-7a1aae0695d9 // indirect
 	github.com/grafana/metrictank v0.13.1
@@ -24,4 +25,5 @@ require (
 	github.com/raintank/dur v0.0.0-20181019115741-955e3a77c6a8 // indirect
 	github.com/sirupsen/logrus v1.4.2
 	github.com/tinylib/msgp v1.1.1 // indirect
+	go.uber.org/zap v1.10.0
 )
