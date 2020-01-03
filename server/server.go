@@ -1,30 +1,21 @@
 package server
 
 import (
-	//	"context"
-	//	"crypto/tls"
-	//	"crypto/x509"
 	"bytes"
-	"time"
-
-	//"errors"
-	"fmt"
-	//	"html/template"
-	//"io"
-	"io/ioutil"
-	//	"net"
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
+	"time"
+
+	"strings"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-
-	//	"os"
-	//	"runtime"
-	"strings"
-	//	"time"
+	"github.com/jackc/pgx"
 
 	"gitlab.com/lbauthdata/model"
 	"go.uber.org/zap"
@@ -32,6 +23,8 @@ import (
 
 type Config struct {
 	Upstreamurl       string
+	ExposedPort       string
+	PostgresConfig    string
 	EnableJSONLogging bool
 	DisableAllLogging bool
 	Verbose           bool
@@ -42,6 +35,7 @@ type lbDataAuthzProxy struct {
 	upstream     *url.URL
 	logger       *zap.Logger
 	reverseproxy *httputil.ReverseProxy
+	dbconn       *pgx.Conn
 }
 
 func NewLbDataAuthzProxy(config *Config) (*lbDataAuthzProxy, error) {
@@ -61,7 +55,7 @@ func NewLbDataAuthzProxy(config *Config) (*lbDataAuthzProxy, error) {
 		panic(err)
 	}
 
-	logger.Info("starting the service with:", zap.String("upstreamurl:", config.Upstreamurl), zap.String("action", "initializing proxy"))
+	logger.Info("initializing the service with:", zap.String("upstreamurl:", config.Upstreamurl), zap.String("action", "initializing proxy"))
 
 	lbdataauthz.reverseproxy = httputil.NewSingleHostReverseProxy(lbdataauthz.upstream)
 	lbdataauthz.reverseproxy.ModifyResponse = lbdataauthz.CleanResponse
@@ -69,7 +63,42 @@ func NewLbDataAuthzProxy(config *Config) (*lbDataAuthzProxy, error) {
 	return lbdataauthz, nil
 }
 
-func (l *lbDataAuthzProxy) CreateServerRouting() error {
+func (l *lbDataAuthzProxy) CreateDbConnection() error {
+
+	l.logger.Info("Creating database connection:", zap.String("dbconfig:", l.config.PostgresConfig))
+
+	pgConfig, err := pgx.ParseConnectionString(l.config.PostgresConfig)
+	if err != nil {
+		l.logger.Error("Error parsing DB connection string:", zap.String("error:", err.Error()))
+		os.Exit(1)
+	}
+
+	// initialize db connection
+	l.dbconn, err = pgx.Connect(pgConfig)
+	if err != nil {
+		l.logger.Error("Error during database connection:", zap.String("error:", err.Error()))
+		os.Exit(1)
+	}
+
+	// defer l.dbconn.Close()
+
+	return nil
+}
+
+func (l *lbDataAuthzProxy) RunServer() error {
+
+	l.logger.Info("starting the service...")
+	r := l.createServerRouting()
+
+	err := http.ListenAndServe(l.config.ExposedPort, r)
+	if err != nil {
+		panic(err)
+	}
+
+	return nil
+}
+
+func (l *lbDataAuthzProxy) createServerRouting() *chi.Mux {
 	r := chi.NewRouter()
 
 	// A good base middleware stack
@@ -83,20 +112,11 @@ func (l *lbDataAuthzProxy) CreateServerRouting() error {
 	// processing should be stopped.
 	r.Use(middleware.Timeout(60 * time.Second))
 
-	r.Get("/tags/autoComplete/tags", l.TagsFilteringMiddleware(l.ProxyHandler))
-	r.Get("/tags/autoComplete/values", l.TagsFilteringMiddleware(l.ProxyHandler))
-	r.Get("/render", l.RenderFilteringMiddleware(l.ProxyHandler))
+	r.Get("/tags/autoComplete/tags", l.GroupPermissionsMiddleware(l.TagsFilteringMiddleware(l.ProxyHandler)))
+	r.Get("/tags/autoComplete/values", l.GroupPermissionsMiddleware(l.TagsFilteringMiddleware(l.ProxyHandler)))
+	r.Get("/render", l.GroupPermissionsMiddleware(l.RenderFilteringMiddleware(l.ProxyHandler)))
 
-	//	http.HandleFunc("/tags/autoComplete/tags", LogMiddleware(GroupPermissionsMiddleware(TagsFilteringMiddleware(ProxyMiddleware(proxy)))))
-	//	http.HandleFunc("/tags/autoComplete/values", LogMiddleware(TagsFilteringMiddleware(ProxyMiddleware(proxy))))
-	//	http.HandleFunc("/render", LogMiddleware(RenderFilteringMiddleware(ProxyMiddleware(proxy))))
-
-	err := http.ListenAndServe(":9001", r)
-	if err != nil {
-		panic(err)
-	}
-
-	return nil
+	return r
 }
 
 func createLogger(config *Config) (*zap.Logger, error) {

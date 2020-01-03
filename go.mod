@@ -15,6 +15,7 @@ require (
 	github.com/grafana/metrictank v0.13.1
 	github.com/hashicorp/memberlist v0.1.5 // indirect
 	github.com/jackc/pgtype v1.0.2
+	github.com/jackc/pgx v3.6.0+incompatible
 	github.com/jackc/pgx/v4 v4.1.2
 	github.com/kisielk/og-rek v1.0.0 // indirect
 	github.com/opentracing/opentracing-go v1.1.0 // indirect
