@@ -309,7 +309,15 @@ func (l *lbDataAuthzProxy) RenderFilteringMiddleware(h http.HandlerFunc) http.Ha
 		reqId := middleware.GetReqID(r.Context())
 		l.logger.Info("pre-filter request /render:", zap.String("RawQuery:", r.URL.RawQuery), zap.String("reqid:", reqId))
 
-		grouptemps := []string{"group:dom:e34ba21c74c289ba894b75ae6c76d22f:temp:warm", "group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:warm"}
+		grouptemps, ok := r.Context().Value("grouptemps").([]string)
+
+		if !ok {
+			err := errors.New("could not extract value grouptemps from context")
+			l.logger.Error("could not extract value from context:", zap.String("reqid:", reqId))
+			panic(err)
+		}
+
+		// grouptemps := []string{"group:dom:e34ba21c74c289ba894b75ae6c76d22f:temp:warm", "group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:warm"}
 
 		grouptempfilters := ""
 
