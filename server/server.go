@@ -29,7 +29,7 @@ type Config struct {
 	DisableAllLogging  bool
 	Verbose            bool
 	Opaurl             string
-	HttpCallTimeoutSec int
+	HttpCallTimeoutSec int64
 }
 
 type lbDataAuthzProxy struct {
