@@ -22,12 +22,14 @@ import (
 )
 
 type Config struct {
-	Upstreamurl       string
-	ExposedPort       string
-	PostgresConfig    string
-	EnableJSONLogging bool
-	DisableAllLogging bool
-	Verbose           bool
+	Upstreamurl        string
+	ExposedPort        string
+	PostgresConfig     string
+	EnableJSONLogging  bool
+	DisableAllLogging  bool
+	Verbose            bool
+	Opaurl             string
+	HttpCallTimeoutSec int
 }
 
 type lbDataAuthzProxy struct {
@@ -36,6 +38,7 @@ type lbDataAuthzProxy struct {
 	logger       *zap.Logger
 	reverseproxy *httputil.ReverseProxy
 	dbconn       *pgx.Conn
+	httpclient   *http.Client
 }
 
 func NewLbDataAuthzProxy(config *Config) (*lbDataAuthzProxy, error) {
@@ -87,6 +90,11 @@ func (l *lbDataAuthzProxy) CreateDbConnection() error {
 
 func (l *lbDataAuthzProxy) RunServer() error {
 
+	// Initializing http client
+	l.httpclient = &http.Client{
+		Timeout: time.Second * time.Duration(l.config.HttpCallTimeoutSec),
+	}
+
 	l.logger.Info("starting the service...")
 	r := l.createServerRouting()
 
@@ -98,7 +106,7 @@ func (l *lbDataAuthzProxy) RunServer() error {
 	return nil
 }
 
-func (l *lbDataAuthzProxy) createServerRouting() *chi.Mux {
+func (l *lbDataAuthzProxy) createServerRouting() chi.Router {
 	r := chi.NewRouter()
 
 	// A good base middleware stack
@@ -112,9 +120,25 @@ func (l *lbDataAuthzProxy) createServerRouting() *chi.Mux {
 	// processing should be stopped.
 	r.Use(middleware.Timeout(60 * time.Second))
 
-	r.Get("/tags/autoComplete/tags", l.GroupPermissionsMiddleware(l.TagsFilteringMiddleware(l.ProxyHandler)))
-	r.Get("/tags/autoComplete/values", l.GroupPermissionsMiddleware(l.TagsFilteringMiddleware(l.ProxyHandler)))
-	r.Get("/render", l.GroupPermissionsMiddleware(l.RenderFilteringMiddleware(l.ProxyHandler)))
+	r.Mount("/debug", middleware.Profiler())
+
+	r.Get("/tags/autoComplete/tags",
+		l.GroupPermissionsMiddleware(
+			l.AuthzEnforcementMiddleware(
+				l.TagsFilteringMiddleware(
+					l.ProxyHandler))))
+
+	r.Get("/tags/autoComplete/values",
+		l.GroupPermissionsMiddleware(
+			l.AuthzEnforcementMiddleware(
+				l.TagsFilteringMiddleware(
+					l.ProxyHandler))))
+
+	r.Get("/render",
+		l.GroupPermissionsMiddleware(
+			l.AuthzEnforcementMiddleware(
+				l.RenderFilteringMiddleware(
+					l.ProxyHandler))))
 
 	return r
 }

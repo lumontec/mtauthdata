@@ -46,3 +46,12 @@ type Permissions struct {
 type Series []Serie
 
 type Tags []string
+
+type OpaJudgement struct {
+	Allow          bool     `json:"allow"`
+	Allowed_groups []string `json:"allowed_groups"`
+	Read_allowed   []string `json:"read_allowed"`
+	Cold_allowed   []string `json:"cold_allowed"`
+	Warm_allowed   []string `json:"warm_allowed"`
+	Hot_allowed    []string `json:"hot_allowed"`
+}

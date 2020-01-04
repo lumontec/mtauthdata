@@ -1,7 +1,10 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -145,12 +148,107 @@ func (l *lbDataAuthzProxy) GroupPermissionsMiddleware(h http.HandlerFunc) http.H
 			panic(err)
 		}
 
-		l.logger.Info("permissions were retreived for groups:", zap.String("groupmappings:", string(groupsArrbytes)), zap.String("reqid:", reqId))
+		l.logger.Info("permissions were retreived for groups", zap.String("reqid:", reqId))
 
 		// Any errors encountered by rows.Next or rows.Scan will be returned here
 		if rows.Err() != nil {
 			l.logger.Error("error during rows next:", zap.String("error:", rows.Err().Error()), zap.String("reqid:", reqId))
 			panic(rows.Err())
+		}
+
+		// Take the context out from the request
+		ctx := r.Context()
+
+		// Get new context with key-value "params" -> "httprouter.Params"
+		ctx = context.WithValue(ctx, "groupmappings", string(groupsArrbytes))
+
+		// Get new http.Request with the new context
+		r = r.WithContext(ctx)
+
+		// Will pass groupmappings inside the request context to enforcement
+		// ctx := context.WithValue(r.Context(), groupsArrbytes, "groupmappings")
+
+		h.ServeHTTP(w, r)
+	})
+}
+
+func (l *lbDataAuthzProxy) AuthzEnforcementMiddleware(h http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		reqId := middleware.GetReqID(r.Context())
+		stringgroupmappings, ok := r.Context().Value("groupmappings").(string)
+
+		if !ok {
+			err := errors.New("could not extract value groupmappings from context")
+			l.logger.Error("could not extract value from context:", zap.String("reqid:", reqId))
+			panic(err)
+		}
+
+		l.logger.Info("enforcing authorization for context:", zap.String("context:", stringgroupmappings), zap.String("reqid:", reqId), zap.String("opaurl:", l.config.Opaurl))
+
+		opaurl, err := url.Parse(l.config.Opaurl)
+		if err != nil {
+			l.logger.Error("could not validate opa url:", zap.String("reqid:", reqId))
+			panic(err)
+		}
+
+		req, err := http.NewRequest("POST", opaurl.String(), strings.NewReader(stringgroupmappings))
+		// req.Header.Set("X-Auth-Username", "admin")
+		// req.Header.Set("Content-Type", "application/json")
+		// req.Header.Set("Accept", "application/json")
+		resp, err := l.httpclient.Do(req)
+		if err != nil {
+			l.logger.Error("opa call failed:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
+			panic(err)
+		}
+
+		data, err := ioutil.ReadAll(resp.Body)
+		l.logger.Info("OPA judgement:", zap.String("response:", string(data)), zap.String("reqid:", reqId))
+
+		if err != nil {
+			l.logger.Error("opa call failed:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
+			panic(err)
+		}
+
+		var opaResp model.OpaJudgement
+		if err := json.Unmarshal(data, &opaResp); /*json.NewDecoder(resp.Body).Decode(&orgResp);*/ err != nil {
+			l.logger.Error("opa resp unmarshal failed:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
+			panic(err)
+		}
+
+		if opaResp.Allow == false {
+			l.logger.Info("user is NOT ALLOWED to access data", zap.String("reqid:", reqId))
+			http.Error(w, http.StatusText(400), 400)
+			return
+
+		} else {
+
+			l.logger.Info("user is allowed to access data, will generate grouptemps", zap.String("reqid:", reqId))
+
+			grouptemps := []string{}
+			for _, group := range opaResp.Read_allowed {
+				grouptemps = append(grouptemps, "group:"+group+":temp:read")
+			}
+			for _, group := range opaResp.Cold_allowed {
+				grouptemps = append(grouptemps, "group:"+group+":temp:cold")
+			}
+			for _, group := range opaResp.Warm_allowed {
+				grouptemps = append(grouptemps, "group:"+group+":temp:warm")
+			}
+			for _, group := range opaResp.Hot_allowed {
+				grouptemps = append(grouptemps, "group:"+group+":temp:hot")
+			}
+
+			l.logger.Info("generated grouptemps", zap.Strings("grouptemps:", grouptemps), zap.String("reqid:", reqId))
+
+			// Take the context out from the request
+			ctx := r.Context()
+
+			// Get new context with key-value "params" -> "httprouter.Params"
+			ctx = context.WithValue(ctx, "grouptemps", grouptemps)
+
+			// Get new http.Request with the new context
+			r = r.WithContext(ctx)
 		}
 
 		h.ServeHTTP(w, r)
@@ -162,9 +260,17 @@ func (l *lbDataAuthzProxy) TagsFilteringMiddleware(h http.HandlerFunc) http.Hand
 
 		reqId := middleware.GetReqID(r.Context())
 
-		l.logger.Info("pre-filter request /tags:", zap.String("RawQuery:", r.URL.RawQuery), zap.String("reqid:", reqId))
+		grouptemps, ok := r.Context().Value("grouptemps").([]string)
 
-		grouptemps := []string{"group:dom:e34ba21c74c289ba894b75ae6c76d22f:temp:warm", "group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:warm"}
+		if !ok {
+			err := errors.New("could not extract value grouptemps from context")
+			l.logger.Error("could not extract value from context:", zap.String("reqid:", reqId))
+			panic(err)
+		}
+
+		// grouptemps := []string{"group:dom:e34ba21c74c289ba894b75ae6c76d22f:temp:warm", "group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:warm"}
+
+		l.logger.Info("pre-filter request /tags:", zap.String("RawQuery:", r.URL.RawQuery), zap.String("reqid:", reqId))
 
 		grouptempfilters := ""
 
@@ -201,7 +307,6 @@ func (l *lbDataAuthzProxy) RenderFilteringMiddleware(h http.HandlerFunc) http.Ha
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		reqId := middleware.GetReqID(r.Context())
-
 		l.logger.Info("pre-filter request /render:", zap.String("RawQuery:", r.URL.RawQuery), zap.String("reqid:", reqId))
 
 		grouptemps := []string{"group:dom:e34ba21c74c289ba894b75ae6c76d22f:temp:warm", "group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:warm"}
