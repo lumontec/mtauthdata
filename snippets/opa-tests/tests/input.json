@@ -1,0 +1,7 @@
+{
+  "input": {
+    "method": "POST",
+    "path": ["/docs", "some", "/value"],
+    "user": "user"
+  }
+}
