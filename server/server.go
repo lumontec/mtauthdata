@@ -95,7 +95,7 @@ func (l *lbDataAuthzProxy) RunServer() error {
 		Timeout: time.Second * time.Duration(l.config.HttpCallTimeoutSec),
 	}
 
-	l.logger.Info("starting the service...")
+	l.logger.Info("starting the service...", zap.String("port:", l.config.ExposedPort))
 	r := l.createServerRouting()
 
 	err := http.ListenAndServe(l.config.ExposedPort, r)
