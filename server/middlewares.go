@@ -192,9 +192,9 @@ func (l *lbDataAuthzProxy) AuthzEnforcementMiddleware(h http.HandlerFunc) http.H
 			panic(err)
 		}
 
-		req, err := http.NewRequest("POST", opaurl.String(), strings.NewReader(stringgroupmappings))
+		req, err := http.NewRequest("POST", opaurl.String(), strings.NewReader(`{ "input" :`+stringgroupmappings+`}`))
 		// req.Header.Set("X-Auth-Username", "admin")
-		// req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Type", "application/json")
 		// req.Header.Set("Accept", "application/json")
 		resp, err := l.httpclient.Do(req)
 		if err != nil {
@@ -210,13 +210,13 @@ func (l *lbDataAuthzProxy) AuthzEnforcementMiddleware(h http.HandlerFunc) http.H
 			panic(err)
 		}
 
-		var opaResp model.OpaJudgement
+		var opaResp model.OpaResp
 		if err := json.Unmarshal(data, &opaResp); /*json.NewDecoder(resp.Body).Decode(&orgResp);*/ err != nil {
 			l.logger.Error("opa resp unmarshal failed:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
 			panic(err)
 		}
 
-		if opaResp.Allow == false {
+		if opaResp.Result.Allow == false {
 			l.logger.Info("user is NOT ALLOWED to access data", zap.String("reqid:", reqId))
 			http.Error(w, http.StatusText(400), 400)
 			return
@@ -226,16 +226,16 @@ func (l *lbDataAuthzProxy) AuthzEnforcementMiddleware(h http.HandlerFunc) http.H
 			l.logger.Info("user is allowed to access data, will generate grouptemps", zap.String("reqid:", reqId))
 
 			grouptemps := []string{}
-			for _, group := range opaResp.Read_allowed {
+			for _, group := range opaResp.Result.Read_allowed {
 				grouptemps = append(grouptemps, "group:"+group+":temp:read")
 			}
-			for _, group := range opaResp.Cold_allowed {
+			for _, group := range opaResp.Result.Cold_allowed {
 				grouptemps = append(grouptemps, "group:"+group+":temp:cold")
 			}
-			for _, group := range opaResp.Warm_allowed {
+			for _, group := range opaResp.Result.Warm_allowed {
 				grouptemps = append(grouptemps, "group:"+group+":temp:warm")
 			}
-			for _, group := range opaResp.Hot_allowed {
+			for _, group := range opaResp.Result.Hot_allowed {
 				grouptemps = append(grouptemps, "group:"+group+":temp:hot")
 			}
 

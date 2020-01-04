@@ -13,7 +13,7 @@ func main() {
 		EnableJSONLogging:  false,
 		DisableAllLogging:  false,
 		Verbose:            false,
-		Opaurl:             "http://localhost:8181",
+		Opaurl:             "http://localhost:8181/v1/data/authzdata",
 		HttpCallTimeoutSec: 10}
 
 	lbdataauthz, _ := server.NewLbDataAuthzProxy(config)

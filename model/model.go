@@ -47,6 +47,10 @@ type Series []Serie
 
 type Tags []string
 
+type OpaResp struct {
+	Result OpaJudgement `json:"result"`
+}
+
 type OpaJudgement struct {
 	Allow          bool     `json:"allow"`
 	Allowed_groups []string `json:"allowed_groups"`
