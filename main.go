@@ -36,13 +36,13 @@ func main() {
 		"httpcalltimeoutsec:", httpcalltimeoutsec)
 
 	config := &server.Config{
-		Upstreamurl:        upstreamurl,    //"http://localhost:6060",
-		ExposedPort:        exposedport,    //":9001",
-		PostgresConfig:     postgresconfig, //"user=keycloak password=password host=172.10.4.6 port=5432 database=lbauth sslmode=disable",
+		Upstreamurl:        upstreamurl,
+		ExposedPort:        exposedport,
+		PostgresConfig:     postgresconfig,
 		EnableJSONLogging:  enablejsonlogging,
 		DisableAllLogging:  disablealllogging,
 		Verbose:            verbose,
-		Opaurl:             opaurl, //"http://localhost:8181/v1/data/authzdata",
+		Opaurl:             opaurl,
 		HttpCallTimeoutSec: httpcalltimeoutsec}
 
 	lbdataauthz, _ := server.NewLbDataAuthzProxy(config)
