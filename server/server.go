@@ -17,8 +17,8 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/jackc/pgx"
 
-	"gitlab.com/lbauthdata/model"
 	"go.uber.org/zap"
+	"lbauthdata/model"
 )
 
 type Config struct {

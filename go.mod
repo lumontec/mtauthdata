@@ -1,4 +1,4 @@
-module gitlab.com/lbauthdata
+module lbauthdata
 
 go 1.13
 

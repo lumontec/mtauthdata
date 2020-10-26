@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/joho/godotenv"
-	"gitlab.com/lbauthdata/server"
+	"lbauthdata/server"
 )
 
 func main() {

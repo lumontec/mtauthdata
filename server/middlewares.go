@@ -12,9 +12,9 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/jackc/pgtype"
 
-	"gitlab.com/lbauthdata/expr"
-	"gitlab.com/lbauthdata/model"
 	"go.uber.org/zap"
+	"lbauthdata/expr"
+	"lbauthdata/model"
 )
 
 func (l *lbDataAuthzProxy) GroupPermissionsMiddleware(h http.HandlerFunc) http.HandlerFunc {
