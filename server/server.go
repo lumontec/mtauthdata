@@ -17,8 +17,9 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/jackc/pgx"
 
-	"go.uber.org/zap"
 	"lbauthdata/model"
+
+	"go.uber.org/zap"
 )
 
 type Config struct {
@@ -44,7 +45,7 @@ type lbDataAuthzProxy struct {
 func NewLbDataAuthzProxy(config *Config) (*lbDataAuthzProxy, error) {
 	logger, err := createLogger(config)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	lbdataauthz := &lbDataAuthzProxy{
@@ -55,7 +56,7 @@ func NewLbDataAuthzProxy(config *Config) (*lbDataAuthzProxy, error) {
 	// Prepare remote url for request proxying
 	lbdataauthz.upstream, err = url.Parse(config.Upstreamurl)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	logger.Info("initializing the service with:", zap.String("upstreamurl:", config.Upstreamurl), zap.String("action", "initializing proxy"))

@@ -5,8 +5,9 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/joho/godotenv"
 	"lbauthdata/server"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -45,7 +46,10 @@ func main() {
 		Opaurl:             opaurl,
 		HttpCallTimeoutSec: httpcalltimeoutsec}
 
-	lbdataauthz, _ := server.NewLbDataAuthzProxy(config)
+	lbdataauthz, err := server.NewLbDataAuthzProxy(config)
+	if err != nil {
+		panic(err)
+	}
 	lbdataauthz.CreateDbConnection()
 	lbdataauthz.RunServer()
 }
