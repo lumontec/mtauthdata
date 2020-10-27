@@ -53,7 +53,7 @@ type ErrUnknownKwarg struct {
 }
 
 func (e ErrUnknownKwarg) Error() string {
-	return fmt.Sprintf("unknown keyword argument %q", e)
+	return fmt.Sprintf("unknown keyword argument %q", e.key)
 }
 
 type ErrBadKwarg struct {
@@ -63,7 +63,7 @@ type ErrBadKwarg struct {
 }
 
 func (e ErrBadKwarg) Error() string {
-	return fmt.Sprintf("keyword argument %q bad type. expected %T - got %s", e.key, e.exp, e.got)
+	return fmt.Sprintf("keyword argument %q bad type. expected %T - got %d", e.key, e.exp, e.got)
 }
 
 type ErrKwargSpecifiedTwice struct {
@@ -399,4 +399,3 @@ func extractMetric(m string) string {
 
 	return m[start:end]
 }
-
