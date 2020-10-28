@@ -8,15 +8,14 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
 	"time"
 
 	"strings"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"github.com/jackc/pgx"
 
+	"lbauthdata/interfaces"
 	"lbauthdata/model"
 
 	"go.uber.org/zap"
@@ -38,7 +37,7 @@ type lbDataAuthzProxy struct {
 	upstream     *url.URL
 	logger       *zap.Logger
 	reverseproxy *httputil.ReverseProxy
-	dbconn       *pgx.Conn
+	Permissions  interfaces.PermissionSource
 	httpclient   *http.Client
 }
 
@@ -65,28 +64,6 @@ func NewLbDataAuthzProxy(config *Config) (*lbDataAuthzProxy, error) {
 	lbdataauthz.reverseproxy.ModifyResponse = lbdataauthz.CleanResponse
 
 	return lbdataauthz, nil
-}
-
-func (l *lbDataAuthzProxy) CreateDbConnection() error {
-
-	l.logger.Info("Creating database connection:", zap.String("dbconfig:", l.config.PostgresConfig))
-
-	pgConfig, err := pgx.ParseConnectionString(l.config.PostgresConfig)
-	if err != nil {
-		l.logger.Error("Error parsing DB connection string:", zap.String("error:", err.Error()))
-		os.Exit(1)
-	}
-
-	// initialize db connection
-	l.dbconn, err = pgx.Connect(pgConfig)
-	if err != nil {
-		l.logger.Error("Error during database connection:", zap.String("error:", err.Error()))
-		os.Exit(1)
-	}
-
-	// defer l.dbconn.Close()
-
-	return nil
 }
 
 func (l *lbDataAuthzProxy) RunServer() error {

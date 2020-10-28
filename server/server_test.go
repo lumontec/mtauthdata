@@ -22,3 +22,7 @@ func TestNewLbDataAuthzProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestCreateDbConnection(t *testing.T) {
+
+}

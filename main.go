@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 
+	"lbauthdata/permissions"
 	"lbauthdata/server"
 
 	"github.com/joho/godotenv"
@@ -46,10 +47,15 @@ func main() {
 		Opaurl:             opaurl,
 		HttpCallTimeoutSec: httpcalltimeoutsec}
 
-	lbdataauthz, err := server.NewLbDataAuthzProxy(config)
+	proxy, err := server.NewLbDataAuthzProxy(config)
 	if err != nil {
 		panic(err)
 	}
-	lbdataauthz.CreateDbConnection()
-	lbdataauthz.RunServer()
+
+	proxy.Permissions, err = permissions.NewPermissionProvider(postgresconfig)
+	if err != nil {
+		panic(err)
+	}
+
+	proxy.RunServer()
 }
