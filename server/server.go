@@ -37,7 +37,7 @@ type lbDataAuthzProxy struct {
 	upstream     *url.URL
 	logger       *zap.Logger
 	reverseproxy *httputil.ReverseProxy
-	Permissions  interfaces.PermissionSource
+	Permissions  interfaces.PermissionProvider
 	httpclient   *http.Client
 }
 
