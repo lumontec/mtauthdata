@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"lbauthdata/model"
 	"net/http"
@@ -99,12 +100,9 @@ func TestGroupPermissionsMiddleware(t *testing.T) {
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
-	// req = req.WithContext(context.WithValue(req.Context(), "some-key", "123ABC"))
+	req = req.WithContext(context.WithValue(req.Context(), "some-key", "123ABC"))
 
 	res := httptest.NewRecorder()
-
-	permHandler(res, req)
-
 	cfg := newFakeConfig()
 	fl, _ := newFakeProxy(cfg)
 	fp := &fakePermissionProvider{}
