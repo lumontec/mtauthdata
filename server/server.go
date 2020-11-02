@@ -38,7 +38,8 @@ type lbDataAuthzProxy struct {
 	logger       *zap.Logger
 	reverseproxy *httputil.ReverseProxy
 	Permissions  interfaces.PermissionProvider
-	httpclient   *http.Client
+	Authz        interfaces.AuthzProvider
+	// httpclient   *http.Client
 }
 
 func NewLbDataAuthzProxy(config *Config) (*lbDataAuthzProxy, error) {
@@ -67,11 +68,6 @@ func NewLbDataAuthzProxy(config *Config) (*lbDataAuthzProxy, error) {
 }
 
 func (l *lbDataAuthzProxy) RunServer() error {
-
-	// Initializing http client
-	l.httpclient = &http.Client{
-		Timeout: time.Second * time.Duration(l.config.HttpCallTimeoutSec),
-	}
 
 	l.logger.Info("starting the service...", zap.String("port:", l.config.ExposedPort))
 	r := l.createServerRouting()

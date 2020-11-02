@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 
+	"lbauthdata/authz"
 	"lbauthdata/permissions"
 	"lbauthdata/server"
 
@@ -52,7 +53,14 @@ func main() {
 		panic(err)
 	}
 
-	proxy.Permissions, err = permissions.NewPermissionProvider(postgresconfig)
+	// Initialize injectable permissionsprovider
+	proxy.Permissions, err = permissions.NewDBPermissionProvider(postgresconfig)
+	if err != nil {
+		panic(err)
+	}
+
+	// Initialize injectable authzprovider
+	proxy.Authz, err = authz.NewHttpAuthzProvider(config)
 	if err != nil {
 		panic(err)
 	}

@@ -13,7 +13,7 @@ type Db struct {
 	conn *pgx.Conn
 }
 
-func NewPermissionProvider(connstr string) (*Db, error) {
+func NewDBPermissionProvider(connstr string) (*Db, error) {
 	// l.logger.Info("Creating database connection:", zap.String("dbconfig:", l.config.PostgresConfig))
 
 	pgConfig, err := pgx.ParseConnectionString(connstr)

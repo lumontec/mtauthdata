@@ -11,6 +11,7 @@ require (
 	github.com/glacjay/goini v0.0.0-20161120062552-fd3024d87ee2 // indirect
 	github.com/go-chi/chi v4.0.2+incompatible
 	github.com/go-macaron/binding v1.0.1 // indirect
+	github.com/go-test/deep v1.0.7
 	github.com/grafana/globalconf v0.0.0-20181214112547-7a1aae0695d9 // indirect
 	github.com/grafana/metrictank v0.13.1
 	github.com/hashicorp/memberlist v0.1.5 // indirect

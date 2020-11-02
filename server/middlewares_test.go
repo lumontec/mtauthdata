@@ -1,13 +1,14 @@
 package server
 
 import (
-	"context"
-	"fmt"
+	"encoding/json"
 	"lbauthdata/model"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+
+	"github.com/go-test/deep"
 
 	"go.uber.org/zap"
 )
@@ -95,19 +96,63 @@ func newFakeProxy(config *Config) (*lbDataAuthzProxy, error) {
 }
 
 func TestGroupPermissionsMiddleware(t *testing.T) {
-	permHandler := func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("ciao")
-	}
 
 	req := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
-	req = req.WithContext(context.WithValue(req.Context(), "some-key", "123ABC"))
-
 	res := httptest.NewRecorder()
 	cfg := newFakeConfig()
 	fl, _ := newFakeProxy(cfg)
 	fp := &fakePermissionProvider{}
 	fl.Permissions = fp
 
+	permHandler := func(w http.ResponseWriter, r *http.Request) {
+		gotpermstring, _ := r.Context().Value("groupmappings").(string)
+		var gotpermissions model.GroupPermMappings
+		if err := json.Unmarshal([]byte(gotpermstring), &gotpermissions); err != nil {
+			panic(err)
+		}
+
+		wantpermissions, _ := fp.GetGroupsPermissions([]string{})
+		if diff := deep.Equal(gotpermissions, wantpermissions); diff != nil {
+			t.Error(diff)
+		}
+	}
+
 	tim := fl.GroupPermissionsMiddleware(permHandler)
 	tim.ServeHTTP(res, req)
 }
+
+// func TestAuthzEnforcementMiddleware(t *testing.T) {
+
+// 	cfg := newFakeConfig()
+// 	fl, _ := newFakeProxy(cfg)
+// 	fp := &fakePermissionProvider{}
+// 	fl.Permissions = fp
+// 	testpermissions, _ := fp.GetGroupsPermissions([]string{})
+
+// 	testPermArrbytes, err := json.Marshal(testpermissions)
+// 	if err != nil {
+// 		// l.logger.Error("error unmarshalling groupsArrbytes:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
+// 		panic(err)
+// 	}
+
+// 	req := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
+// 	req = req.WithContext(context.WithValue(req.Context(), "groupmappings", testPermArrbytes))
+
+// 	res := httptest.NewRecorder()
+
+// 	permHandler := func(w http.ResponseWriter, r *http.Request) {
+// 		gotpermstring, _ := r.Context().Value("groupmappings").(string)
+// 		var gotpermissions model.GroupPermMappings
+// 		if err := json.Unmarshal([]byte(gotpermstring), &gotpermissions); err != nil {
+// 			panic(err)
+// 		}
+
+// 		wantpermissions, _ := fp.GetGroupsPermissions([]string{})
+// 		if diff := deep.Equal(gotpermissions, wantpermissions); diff != nil {
+// 			t.Error(diff)
+// 		}
+// 	}
+
+// 	tim := fl.AuthzEnforcementMiddleware(permHandler)
+// 	tim.ServeHTTP(res, req)
+// }

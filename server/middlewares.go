@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -12,7 +11,6 @@ import (
 	"github.com/go-chi/chi/middleware"
 
 	"lbauthdata/expr"
-	"lbauthdata/model"
 
 	"go.uber.org/zap"
 )
@@ -71,35 +69,7 @@ func (l *lbDataAuthzProxy) AuthzEnforcementMiddleware(h http.HandlerFunc) http.H
 
 		l.logger.Info("enforcing authorization for context:", zap.String("context:", stringgroupmappings), zap.String("reqid:", reqId), zap.String("opaurl:", l.config.Opaurl))
 
-		opaurl, err := url.Parse(l.config.Opaurl)
-		if err != nil {
-			l.logger.Error("could not validate opa url:", zap.String("reqid:", reqId))
-			panic(err)
-		}
-
-		req, err := http.NewRequest("POST", opaurl.String(), strings.NewReader(`{ "input" :`+stringgroupmappings+`}`))
-		// req.Header.Set("X-Auth-Username", "admin")
-		req.Header.Set("Content-Type", "application/json")
-		// req.Header.Set("Accept", "application/json")
-		resp, err := l.httpclient.Do(req)
-		if err != nil {
-			l.logger.Error("opa call failed:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
-			panic(err)
-		}
-
-		data, err := ioutil.ReadAll(resp.Body)
-		l.logger.Info("OPA judgement:", zap.String("response:", string(data)), zap.String("reqid:", reqId))
-
-		if err != nil {
-			l.logger.Error("opa call failed:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
-			panic(err)
-		}
-
-		var opaResp model.OpaResp
-		if err := json.Unmarshal(data, &opaResp); /*json.NewDecoder(resp.Body).Decode(&orgResp);*/ err != nil {
-			l.logger.Error("opa resp unmarshal failed:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
-			panic(err)
-		}
+		opaResp, _ := l.Authz.GetAuthzDecision(stringgroupmappings)
 
 		if opaResp.Result.Allow == false {
 			l.logger.Info("user is NOT ALLOWED to access data", zap.String("reqid:", reqId))
