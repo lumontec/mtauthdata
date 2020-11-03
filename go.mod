@@ -27,6 +27,7 @@ require (
 	github.com/prometheus/prometheus v2.5.0+incompatible // indirect
 	github.com/raintank/dur v0.0.0-20181019115741-955e3a77c6a8 // indirect
 	github.com/sirupsen/logrus v1.4.2
+	github.com/stretchr/testify v1.4.0
 	github.com/tinylib/msgp v1.1.1 // indirect
 	go.uber.org/zap v1.10.0
 )

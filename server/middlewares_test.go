@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"lbauthdata/model"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/go-test/deep"
+	"github.com/stretchr/testify/assert"
 
 	"go.uber.org/zap"
 )
@@ -161,7 +163,7 @@ func TestAuthzEnforcementMiddleware(t *testing.T) {
 
 	res := httptest.NewRecorder()
 
-	permHandler := func(w http.ResponseWriter, r *http.Request) {
+	authzHandler := func(w http.ResponseWriter, r *http.Request) {
 
 		gottempstrings, _ := r.Context().Value("grouptemps").([]string)
 		wanttempstrings := []string{"group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:read", "group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:cold"}
@@ -171,6 +173,39 @@ func TestAuthzEnforcementMiddleware(t *testing.T) {
 		}
 	}
 
-	tim := fl.AuthzEnforcementMiddleware(permHandler)
+	tim := fl.AuthzEnforcementMiddleware(authzHandler)
 	tim.ServeHTTP(res, req)
+}
+
+func TestTagsFilteringMiddleware(t *testing.T) {
+
+	cfg := newFakeConfig()
+	fl, _ := newFakeProxy(cfg)
+
+	cases := []struct {
+		gtemps   []string
+		rawquery string
+	}{
+		{[]string{"group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:read", "group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:cold"}, "&expr=data:pr:ext:acl:grouptemp=~(^group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:read$|^group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:cold$)"},
+		{[]string{"group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:read"}, "&expr=data:pr:ext:acl:grouptemp=~(^group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:read$)"},
+		{[]string{}, "&expr=data:pr:ext:acl:grouptemp=~()"},
+		// {[]string{"group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:read", "group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:cold"}, "ciao"},
+	}
+
+	for _, tc := range cases {
+		tname, _ := json.Marshal(tc.gtemps)
+		t.Run(string(tname), func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
+			req = req.WithContext(context.WithValue(req.Context(), "grouptemps", tc.gtemps))
+			res := httptest.NewRecorder()
+
+			tagsFilterHandler := func(w http.ResponseWriter, r *http.Request) {
+				fmt.Println("test response:", r.URL.RawQuery)
+				assert.Equal(t, tc.rawquery, r.URL.RawQuery)
+			}
+
+			tim := fl.TagsFilteringMiddleware(tagsFilterHandler)
+			tim.ServeHTTP(res, req)
+		})
+	}
 }
