@@ -15,6 +15,26 @@ import (
 	"go.uber.org/zap"
 )
 
+//-----------------------
+//	MIDDLEWARE CHAINING |
+//----------------------
+//
+//  Httpreq -> GroupPermissionsMiddleware -> groupmappings
+//									|
+//									v
+//  groupmappings -> AuthzEnforcementMiddleware -> grouptemps
+//									|
+//									---------------------------------------------------
+//									|                                                 |
+//									v                                                 v
+//  grouptemps -> TagsFilteringMiddleware -> rawquery         grouptemps -> RenderFilteringMiddleware -> rawquery
+//                                  |                                                 |
+//                                  ---------------------------------------------------
+//                                                       |
+//                                                       v
+//	                                    rawquery -> proxyhandler
+//
+
 func (l *lbDataAuthzProxy) GroupPermissionsMiddleware(h http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reqId := middleware.GetReqID(r.Context())

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"lbauthdata/model"
 	"net/http"
@@ -13,9 +14,10 @@ import (
 	"go.uber.org/zap"
 )
 
-type fakePermissionProvider struct{}
+type stubPermissionProvider struct{}
 
-func (fp *fakePermissionProvider) GetGroupsPermissions(groupsarray []string) (model.GroupPermMappings, error) {
+func (sp *stubPermissionProvider) GetGroupsPermissions(groupsarray []string) (model.GroupPermMappings, error) {
+	// return testgroupmappings, nil
 	return model.GroupPermMappings{
 		Groups: []model.Mapping{
 			{
@@ -56,6 +58,21 @@ func (fp *fakePermissionProvider) GetGroupsPermissions(groupsarray []string) (mo
 					Org_admin:      false,
 				},
 			},
+		},
+	}, nil
+}
+
+type stubAuthzProvider struct{}
+
+func (sa *stubAuthzProvider) GetAuthzDecision(groupmappings string) (model.OpaResp, error) {
+	return model.OpaResp{
+		Result: model.OpaJudgement{
+			Allow:          true,
+			Allowed_groups: []string{"e694ddf2-1790-addd-0f57-bc23b9d47fa3", "0dbd3c3e-0b44-4a4e-aa32-569f8951dc79"},
+			Read_allowed:   []string{"0dbd3c3e-0b44-4a4e-aa32-569f8951dc79"},
+			Cold_allowed:   []string{"0dbd3c3e-0b44-4a4e-aa32-569f8951dc79"},
+			Warm_allowed:   []string{},
+			Hot_allowed:    []string{},
 		},
 	}, nil
 }
@@ -101,8 +118,8 @@ func TestGroupPermissionsMiddleware(t *testing.T) {
 	res := httptest.NewRecorder()
 	cfg := newFakeConfig()
 	fl, _ := newFakeProxy(cfg)
-	fp := &fakePermissionProvider{}
-	fl.Permissions = fp
+	sp := &stubPermissionProvider{}
+	fl.Permissions = sp
 
 	permHandler := func(w http.ResponseWriter, r *http.Request) {
 		gotpermstring, _ := r.Context().Value("groupmappings").(string)
@@ -111,7 +128,7 @@ func TestGroupPermissionsMiddleware(t *testing.T) {
 			panic(err)
 		}
 
-		wantpermissions, _ := fp.GetGroupsPermissions([]string{})
+		wantpermissions, _ := sp.GetGroupsPermissions([]string{})
 		if diff := deep.Equal(gotpermissions, wantpermissions); diff != nil {
 			t.Error(diff)
 		}
@@ -121,38 +138,39 @@ func TestGroupPermissionsMiddleware(t *testing.T) {
 	tim.ServeHTTP(res, req)
 }
 
-// func TestAuthzEnforcementMiddleware(t *testing.T) {
+func TestAuthzEnforcementMiddleware(t *testing.T) {
 
-// 	cfg := newFakeConfig()
-// 	fl, _ := newFakeProxy(cfg)
-// 	fp := &fakePermissionProvider{}
-// 	fl.Permissions = fp
-// 	testpermissions, _ := fp.GetGroupsPermissions([]string{})
+	cfg := newFakeConfig()
+	fl, _ := newFakeProxy(cfg)
+	sa := &stubAuthzProvider{}
+	fl.Authz = sa
+	sp := &stubPermissionProvider{}
+	fl.Permissions = sp
 
-// 	testPermArrbytes, err := json.Marshal(testpermissions)
-// 	if err != nil {
-// 		// l.logger.Error("error unmarshalling groupsArrbytes:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
-// 		panic(err)
-// 	}
+	testpermissions, _ := sp.GetGroupsPermissions([]string{})
 
-// 	req := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
-// 	req = req.WithContext(context.WithValue(req.Context(), "groupmappings", testPermArrbytes))
+	testPermArrbytes, err := json.Marshal(testpermissions)
 
-// 	res := httptest.NewRecorder()
+	if err != nil {
+		// l.logger.Error("error unmarshalling groupsArrbytes:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
+		panic(err)
+	}
 
-// 	permHandler := func(w http.ResponseWriter, r *http.Request) {
-// 		gotpermstring, _ := r.Context().Value("groupmappings").(string)
-// 		var gotpermissions model.GroupPermMappings
-// 		if err := json.Unmarshal([]byte(gotpermstring), &gotpermissions); err != nil {
-// 			panic(err)
-// 		}
+	req := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
+	req = req.WithContext(context.WithValue(req.Context(), "groupmappings", string(testPermArrbytes)))
 
-// 		wantpermissions, _ := fp.GetGroupsPermissions([]string{})
-// 		if diff := deep.Equal(gotpermissions, wantpermissions); diff != nil {
-// 			t.Error(diff)
-// 		}
-// 	}
+	res := httptest.NewRecorder()
 
-// 	tim := fl.AuthzEnforcementMiddleware(permHandler)
-// 	tim.ServeHTTP(res, req)
-// }
+	permHandler := func(w http.ResponseWriter, r *http.Request) {
+
+		gottempstrings, _ := r.Context().Value("grouptemps").([]string)
+		wanttempstrings := []string{"group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:read", "group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:cold"}
+
+		if diff := deep.Equal(gottempstrings, wanttempstrings); diff != nil {
+			t.Error(diff)
+		}
+	}
+
+	tim := fl.AuthzEnforcementMiddleware(permHandler)
+	tim.ServeHTTP(res, req)
+}
