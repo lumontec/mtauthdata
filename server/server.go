@@ -162,11 +162,11 @@ func (l *lbDataAuthzProxy) CleanResponse(r *http.Response) error {
 
 		l.logger.Info("pre-clean response:", zap.Any("/render", mtRespRender), zap.String("reqid:", reqId))
 
-		cleanRender(&mtRespRender[0])
+		clMtRespRender, _ := cleanRender(mtRespRender[0])
 
-		l.logger.Info("cleaned response:", zap.Any("/render", mtRespRender), zap.String("reqid:", reqId))
+		l.logger.Info("cleaned response:", zap.Any("/render", clMtRespRender), zap.String("reqid:", reqId))
 
-		jsonResp, err = json.Marshal(mtRespRender)
+		jsonResp, err = json.Marshal(clMtRespRender)
 		if err != nil {
 			l.logger.Error("Error marshalling json render response", zap.String("error", err.Error()))
 			return err
@@ -239,7 +239,8 @@ func (l *lbDataAuthzProxy) CleanResponse(r *http.Response) error {
 	// log.Println(responseContent)
 }
 
-func cleanRender(mtResp *model.Serie) error {
+func cleanRender(mtRespCp model.Serie) (model.Serie, error) {
+	mtResp := mtRespCp
 	cleantarget := ""
 
 	semistr := strings.Split(mtResp.Target, ";")
@@ -328,12 +329,11 @@ func cleanRender(mtResp *model.Serie) error {
 		}
 	}
 
-	return nil
+	return mtResp, nil
 }
 
 func cleanTags(mtResp model.Tags) (err error, cleantags []string) {
 
-	// Cleaning tags
 	for _, tag := range mtResp {
 		tagstr := strings.Split(tag, ":")
 		for j := 0; j < len(tagstr); j++ {

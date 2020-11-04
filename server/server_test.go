@@ -1,7 +1,11 @@
 package server
 
 import (
+	"encoding/json"
+	"lbauthdata/model"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewLbDataAuthzProxy(t *testing.T) {
@@ -23,23 +27,72 @@ func TestNewLbDataAuthzProxy(t *testing.T) {
 	}
 }
 
-// func testCleanTags(t *testing.T) {
+func TestCleanTags(t *testing.T) {
 
-// 	cases := []struct {
-// 		intags   model.Tags
-// 		wantags  []string
-// 	}{
-// 		{"/render?target=demotags.iot1.metric0&from=-5min&until=now&format=json&maxDataPoints=653", []string{"group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:read", "group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:cold"}, "target=demotags.iot1.metric0&from=-5min&until=now&format=json&maxDataPoints=653&expr=data:pr:ext:acl:grouptemp=~(^group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:read$|^group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:cold$)"},
-// 		{"/render?target=demotags.iot1.metric0&from=-5min&until=now&format=json&maxDataPoints=653", []string{"group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:cold"}, "target=demotags.iot1.metric0&from=-5min&until=now&format=json&maxDataPoints=653&expr=data:pr:ext:acl:grouptemp=~(^group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:cold$)"},
-// 		{"/render?target=demotags.iot1.metric0&from=-5min&until=now&format=json&maxDataPoints=653", []string{}, "target=demotags.iot1.metric0&from=-5min&until=now&format=json&maxDataPoints=653&expr=data:pr:ext:acl:grouptemp=~()"},
-// 	}
+	cases := []struct {
+		inTags   model.Tags
+		wantTags []string
+	}{
+		{model.Tags{"name:test"}, []string{"name", "test"}},
+		{model.Tags{"data:test"}, []string{"test"}},
+		{model.Tags{"ext:test"}, []string{"test"}},
+		{model.Tags{"int:test"}, []string{"test"}},
+		{model.Tags{"pu:test"}, []string{"test"}},
+		{model.Tags{"cust:test"}, []string{"test"}},
+		{model.Tags{"pr:test"}, []string{"test"}},
+		{model.Tags{"acl:test"}, []string{"test"}},
+		{model.Tags{"creator:test"}, []string{"test"}},
+		{model.Tags{"temp:test"}, []string{"test"}},
+		{model.Tags{"grouptemp:test"}, []string{"test"}},
+	}
+	for _, tc := range cases {
+		tname, _ := json.Marshal(tc.inTags)
+		t.Run(string(tname), func(t *testing.T) {
+			_, gotTags := cleanTags(tc.inTags)
+			assert.Equal(t, tc.wantTags, gotTags)
+		})
+	}
 
-// 	for _, tc := range cases {
-// 		tname, _ := json.Marshal(tc.intags)
-// 		t.Run(string(tname), func(t *testing.T) {
+}
 
-// 			assert.Equal(t, tc.gotquery, r.URL.RawQuery)
-// 		}
-// 	}
+func TestCleanRender(t *testing.T) {
 
-// }
+	cases := []struct {
+		inSerie   model.Serie
+		wantSerie model.Serie
+	}{
+		{
+			inSerie: model.Serie{
+				Target:     "demotags.iot1.metric0",
+				Datapoints: []model.Point{},
+				Tags: map[string]string{
+					"name": "demotags.iot1.metric0",
+				},
+				Interval:  0,
+				QueryPatt: "",
+				QueryFrom: 0,
+				QueryTo:   1000,
+			},
+			wantSerie: model.Serie{
+				Target:     "demotags.iot1.metric0",
+				Datapoints: []model.Point{},
+				Tags: map[string]string{
+					"name": "demotags.iot1.metric0",
+				},
+				Interval:  0,
+				QueryPatt: "",
+				QueryFrom: 0,
+				QueryTo:   1000,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		tname, _ := json.Marshal(tc.inSerie)
+		t.Run(string(tname), func(t *testing.T) {
+			gotSerie, _ := cleanRender(tc.inSerie)
+			assert.Equal(t, tc.inSerie, gotSerie)
+		})
+	}
+
+}

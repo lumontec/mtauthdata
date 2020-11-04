@@ -183,9 +183,9 @@ func TestTagsFilteringMiddleware(t *testing.T) {
 	fl, _ := newFakeProxy(cfg)
 
 	cases := []struct {
-		inquery   string
+		inQuery   string
 		gtemps    []string
-		wantquery string
+		wantQuery string
 	}{
 		{"/tags/autoComplete/tags", []string{"group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:read", "group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:cold"}, "&expr=data:pr:ext:acl:grouptemp=~(^group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:read$|^group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:cold$)"},
 		{"/tags/autoComplete/tags", []string{"group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:read"}, "&expr=data:pr:ext:acl:grouptemp=~(^group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:read$)"},
@@ -195,13 +195,13 @@ func TestTagsFilteringMiddleware(t *testing.T) {
 	for _, tc := range cases {
 		tname, _ := json.Marshal(tc.gtemps)
 		t.Run(string(tname), func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "http://localhost"+tc.inquery, nil)
+			req := httptest.NewRequest(http.MethodGet, "http://localhost"+tc.inQuery, nil)
 			req = req.WithContext(context.WithValue(req.Context(), "grouptemps", tc.gtemps))
 			res := httptest.NewRecorder()
 
 			tagsFilterHandler := func(w http.ResponseWriter, r *http.Request) {
 				fmt.Println("test response:", r.URL.RawQuery)
-				assert.Equal(t, tc.wantquery, r.URL.RawQuery)
+				assert.Equal(t, tc.wantQuery, r.URL.RawQuery)
 			}
 
 			tim := fl.TagsFilteringMiddleware(tagsFilterHandler)
@@ -216,9 +216,9 @@ func TestRenderFilteringMiddleware(t *testing.T) {
 	fl, _ := newFakeProxy(cfg)
 
 	cases := []struct {
-		inquery  string
+		inQuery  string
 		gtemps   []string
-		gotquery string
+		gotQuery string
 	}{
 		{"/render?target=demotags.iot1.metric0&from=-5min&until=now&format=json&maxDataPoints=653", []string{"group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:read", "group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:cold"}, "target=demotags.iot1.metric0&from=-5min&until=now&format=json&maxDataPoints=653&expr=data:pr:ext:acl:grouptemp=~(^group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:read$|^group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:cold$)"},
 		{"/render?target=demotags.iot1.metric0&from=-5min&until=now&format=json&maxDataPoints=653", []string{"group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:cold"}, "target=demotags.iot1.metric0&from=-5min&until=now&format=json&maxDataPoints=653&expr=data:pr:ext:acl:grouptemp=~(^group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:cold$)"},
@@ -228,12 +228,12 @@ func TestRenderFilteringMiddleware(t *testing.T) {
 	for _, tc := range cases {
 		tname, _ := json.Marshal(tc.gtemps)
 		t.Run(string(tname), func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "http://localhost/"+tc.inquery, nil)
+			req := httptest.NewRequest(http.MethodGet, "http://localhost/"+tc.inQuery, nil)
 			req = req.WithContext(context.WithValue(req.Context(), "grouptemps", tc.gtemps))
 			res := httptest.NewRecorder()
 
 			tagsFilterHandler := func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tc.gotquery, r.URL.RawQuery)
+				assert.Equal(t, tc.gotQuery, r.URL.RawQuery)
 			}
 
 			tim := fl.TagsFilteringMiddleware(tagsFilterHandler)
