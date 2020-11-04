@@ -94,5 +94,4 @@ func TestCleanRender(t *testing.T) {
 			assert.Equal(t, tc.inSerie, gotSerie)
 		})
 	}
-
 }
