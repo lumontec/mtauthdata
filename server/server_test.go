@@ -23,6 +23,23 @@ func TestNewLbDataAuthzProxy(t *testing.T) {
 	}
 }
 
-func TestCreateDbConnection(t *testing.T) {
+// func testCleanTags(t *testing.T) {
 
-}
+// 	cases := []struct {
+// 		intags   model.Tags
+// 		wantags  []string
+// 	}{
+// 		{"/render?target=demotags.iot1.metric0&from=-5min&until=now&format=json&maxDataPoints=653", []string{"group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:read", "group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:cold"}, "target=demotags.iot1.metric0&from=-5min&until=now&format=json&maxDataPoints=653&expr=data:pr:ext:acl:grouptemp=~(^group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:read$|^group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:cold$)"},
+// 		{"/render?target=demotags.iot1.metric0&from=-5min&until=now&format=json&maxDataPoints=653", []string{"group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:cold"}, "target=demotags.iot1.metric0&from=-5min&until=now&format=json&maxDataPoints=653&expr=data:pr:ext:acl:grouptemp=~(^group:0dbd3c3e-0b44-4a4e-aa32-569f8951dc79:temp:cold$)"},
+// 		{"/render?target=demotags.iot1.metric0&from=-5min&until=now&format=json&maxDataPoints=653", []string{}, "target=demotags.iot1.metric0&from=-5min&until=now&format=json&maxDataPoints=653&expr=data:pr:ext:acl:grouptemp=~()"},
+// 	}
+
+// 	for _, tc := range cases {
+// 		tname, _ := json.Marshal(tc.intags)
+// 		t.Run(string(tname), func(t *testing.T) {
+
+// 			assert.Equal(t, tc.gotquery, r.URL.RawQuery)
+// 		}
+// 	}
+
+// }

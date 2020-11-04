@@ -15,21 +15,21 @@ import (
 	"go.uber.org/zap"
 )
 
-//-----------------------
-//	MIDDLEWARE CHAINING |
-//----------------------
+//--------------------
+//	MIDDLEWARE CHAIN |
+//--------------------
 //
 //  Httpreq -> GroupPermissionsMiddleware -> groupmappings
 //									|
 //									v
 //  groupmappings -> AuthzEnforcementMiddleware -> grouptemps
 //									|
-//									---------------------------------------------------
+//                                  |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 //									|                                                 |
 //									v                                                 v
 //  grouptemps -> TagsFilteringMiddleware -> rawquery         grouptemps -> RenderFilteringMiddleware -> rawquery
 //                                  |                                                 |
-//                                  ---------------------------------------------------
+//                                  |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _|
 //                                                       |
 //                                                       v
 //	                                    rawquery -> proxyhandler
