@@ -9,3 +9,9 @@ type PermissionProvider interface {
 type AuthzProvider interface {
 	GetAuthzDecision(groupmappings string) (model.OpaResp, error)
 }
+
+type Logger interface {
+	Debug(arg string)
+	Info(arg string)
+	Error(arg string)
+}

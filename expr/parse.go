@@ -3,14 +3,17 @@ package expr
 import (
 	"errors"
 	"fmt"
+	"lbauthdata/logger"
 	"reflect"
 	"strconv"
 	"strings"
 
 	//	"github.com/grafana/metrictank/api/models"
 	"github.com/grafana/metrictank/util"
-	log "github.com/sirupsen/logrus"
+	// log "github.com/sirupsen/logrus"
 )
+
+var log = logger.GetLogger("expr")
 
 var (
 	ErrMissingArg          = errors.New("argument missing")
@@ -393,7 +396,7 @@ func extractMetric(m string) string {
 	}
 
 	if quoteChar != 0 {
-		log.Warnf("extractMetric: encountered unterminated string literal in %s", m)
+		log.Debug("extractMetric: encountered unterminated string literal in:", m)
 		return ""
 	}
 
