@@ -2,6 +2,7 @@ package authz
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -38,8 +39,7 @@ func NewHttpAuthzProvider(config *server.Config) (*AuthzClient, error) {
 func (ac *AuthzClient) GetAuthzDecision(stringgroupmappings string, reqId string) (model.OpaResp, error) {
 	opaurl, err := url.Parse(ac.opaurl)
 	if err != nil {
-		log.Error("could not validate opa url:", zap.String("reqid:", reqId))
-		panic(err)
+		return model.OpaResp{}, fmt.Errorf("could not validate opa url: %w", err)
 	}
 
 	req, err := http.NewRequest("POST", opaurl.String(), strings.NewReader(`{ "input" :`+stringgroupmappings+`}`))
@@ -48,22 +48,19 @@ func (ac *AuthzClient) GetAuthzDecision(stringgroupmappings string, reqId string
 	// req.Header.Set("Accept", "application/json")
 	resp, err := ac.httpclient.Do(req)
 	if err != nil {
-		log.Error("opa call failed:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
-		panic(err)
+		return model.OpaResp{}, fmt.Errorf("opa http req failed: %w", err)
 	}
 
 	data, err := ioutil.ReadAll(resp.Body)
-	log.Info("OPA judgement:", zap.String("response:", string(data)), zap.String("reqid:", reqId))
+	log.Debug("OPA judgement:", zap.String("response:", string(data)), zap.String("reqid:", reqId))
 
 	if err != nil {
-		log.Error("opa call failed:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
-		panic(err)
+		return model.OpaResp{}, fmt.Errorf("opa read resp failed: %w", err)
 	}
 
 	var opaResp model.OpaResp
 	if err := json.Unmarshal(data, &opaResp); /*json.NewDecoder(resp.Body).Decode(&orgResp);*/ err != nil {
-		log.Error("opa resp unmarshal failed:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
-		panic(err)
+		return model.OpaResp{}, fmt.Errorf("opa resp unmarshal failed: %w", err)
 	}
 
 	return opaResp, nil

@@ -49,7 +49,7 @@ func NewLbDataAuthzProxy(config *Config) (*lbDataAuthzProxy, error) {
 
 	upstream, err := url.Parse(config.Upstreamurl)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error parsing upstreamurl: %w", err)
 	}
 
 	lbdataauthz.upstream = upstream
@@ -69,7 +69,7 @@ func (l *lbDataAuthzProxy) RunServer() error {
 
 	err := http.ListenAndServe(l.config.ExposedPort, r)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("error serving proxy: %w", err)
 	}
 
 	return nil
@@ -118,8 +118,7 @@ func (l *lbDataAuthzProxy) CleanResponse(r *http.Response) error {
 
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		slog.Error("Error reading MT response body", zap.String("error", err.Error()))
-		return err
+		return fmt.Errorf("cleanresponse error reading MT response body: %w", err)
 	}
 
 	var jsonResp []byte
@@ -129,67 +128,60 @@ func (l *lbDataAuthzProxy) CleanResponse(r *http.Response) error {
 		var mtRespRender model.Series
 
 		if err := json.Unmarshal(b, &mtRespRender); err != nil {
-			slog.Error("Error unmarshalling MT response body", zap.String("error", err.Error()))
-			return err
+			return fmt.Errorf("cleanresponse /render error unmarshalling MT response body: %w", err)
 		}
 
-		slog.Info("pre-clean response:", zap.Any("/render", mtRespRender), zap.String("reqid:", reqId))
+		slog.Debug("pre-clean response:", zap.Any("/render", mtRespRender), zap.String("reqid:", reqId))
 
 		clMtRespRender, _ := cleanRender(mtRespRender[0])
 
-		slog.Info("cleaned response:", zap.Any("/render", clMtRespRender), zap.String("reqid:", reqId))
+		slog.Debug("cleaned response:", zap.Any("/render", clMtRespRender), zap.String("reqid:", reqId))
 
 		jsonResp, err = json.Marshal(clMtRespRender)
 		if err != nil {
-			slog.Error("Error marshalling json render response", zap.String("error", err.Error()))
-			return err
+			return fmt.Errorf("cleanresponse /render error marshalling json render response: %w", err)
 		}
 
 	case "/tags/autoComplete/tags":
 		var mtRespTags model.Tags
 
 		if err := json.Unmarshal(b, &mtRespTags); err != nil {
-			slog.Error("Error unmarshalling MT response body", zap.String("error", err.Error()))
-			return err
+			return fmt.Errorf("cleanresponse /tags/autoComplete/tags error unmarshalling MT response body: %w", err)
 		}
 
-		slog.Info("pre-clean response:", zap.Any("/tags/autoComplete/tags", mtRespTags), zap.String("reqid:", reqId))
+		slog.Debug("pre-clean response:", zap.Any("/tags/autoComplete/tags", mtRespTags), zap.String("reqid:", reqId))
 
 		err, mtRespTagsClean := cleanTags(mtRespTags)
 		if err != nil {
-			slog.Error("Error cleaning MT response tag keys", zap.String("error", err.Error()))
-			return err
+			return fmt.Errorf("cleanresponse /tags/autoComplete/tags error cleaning MT response tag keys: %w", err)
 		}
 
-		slog.Info("cleaned response:", zap.Any("/tags/autoComplete/tags", mtRespTagsClean), zap.String("reqid:", reqId))
+		slog.Debug("cleaned response:", zap.Any("/tags/autoComplete/tags", mtRespTagsClean), zap.String("reqid:", reqId))
 
 		jsonResp, err = json.Marshal(mtRespTagsClean)
 		if err != nil {
-			slog.Error("Error unmarshalling MT response body", zap.String("error", err.Error()))
-			return err
+			return fmt.Errorf("cleanresponse /tags/autoComplete/tags error marshalling MT response body: %w", err)
 		}
 
 	case "/tags/autoComplete/values":
 		var mtRespTags model.Tags
 
 		if err := json.Unmarshal(b, &mtRespTags); err != nil {
-			slog.Error("Error unmarshalling MT response body", zap.String("error", err.Error()))
-			return err
+			return fmt.Errorf("cleanresponse /tags/autoComplete/values error unmarshalling MT response body: %w", err)
 		}
 
-		slog.Info("pre-clean response:", zap.Any("/tags/autoComplete/values", mtRespTags), zap.String("reqid:", reqId))
+		slog.Debug("pre-clean response:", zap.Any("/tags/autoComplete/values", mtRespTags), zap.String("reqid:", reqId))
 
 		err, mtRespTagsClean := cleanTags(mtRespTags)
 		if err != nil {
-			slog.Error("Error cleaning MT response tag values", zap.String("error", err.Error()))
+			return fmt.Errorf("cleanresponse /tags/autoComplete/values error cleaning MT response tag values: %w", err)
 		}
 
-		slog.Info("cleaned response:", zap.Any("/tags/autoComplete/values", mtRespTagsClean), zap.String("reqid:", reqId))
+		slog.Debug("cleaned response:", zap.Any("/tags/autoComplete/values", mtRespTagsClean), zap.String("reqid:", reqId))
 
 		jsonResp, err = json.Marshal(mtRespTagsClean)
 		if err != nil {
-			slog.Error("Error unmarshalling MT response body", zap.String("error", err.Error()))
-			return err
+			return fmt.Errorf("cleanresponse /tags/autoComplete/values error marshalling MT response body: %w", err)
 		}
 
 		//	defalut:
@@ -202,14 +194,6 @@ func (l *lbDataAuthzProxy) CleanResponse(r *http.Response) error {
 	r.Body = ioutil.NopCloser(buf)
 	r.Header["Content-Length"] = []string{fmt.Sprint(buf.Len())}
 	return nil
-
-	// var responseContent []interface{}
-	// err := parseResponse(r, &responseContent)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// slog.Println(responseContent)
 }
 
 func cleanRender(mtRespCp model.Serie) (model.Serie, error) {
@@ -349,7 +333,7 @@ func cleanTags(mtResp model.Tags) (err error, cleantags []string) {
 func parseResponse(res *http.Response, unmarshalStruct *interface{}) error {
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		return err
+		return fmt.Errorf("parseResponse error reading body: %w", err)
 	}
 	res.Body.Close()
 

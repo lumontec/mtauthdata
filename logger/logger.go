@@ -101,19 +101,13 @@ func GetLogger(modulename string) *ZapLogger {
 }
 
 func (zl *ZapLogger) Debug(args ...interface{}) {
-	// if moduleLevels[zl.modulename] <= DEBUG {
-	zl.zlog.Debug(args)
-	// }
+	zl.zlog.Debug(zl.modulename, args)
 }
 
 func (zl *ZapLogger) Info(args ...interface{}) {
-	// if moduleLevels[zl.modulename] <= INFO {
-	zl.zlog.Info(args)
-	// }
+	zl.zlog.Info(zl.modulename, args)
 }
 
 func (zl *ZapLogger) Error(args ...interface{}) {
-	// if moduleLevels[zl.modulename] <= ERROR {
-	zl.zlog.Error(args)
-	// }
+	zl.zlog.Error(zl.modulename, args)
 }

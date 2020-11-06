@@ -8,9 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	//	"github.com/grafana/metrictank/api/models"
 	"github.com/grafana/metrictank/util"
-	// log "github.com/sirupsen/logrus"
 )
 
 var log = logger.GetLogger("expr")
