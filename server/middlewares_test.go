@@ -84,32 +84,26 @@ func newFakeConfig() *Config {
 		Upstreamurl:        "http://localhost:6060",
 		ExposedPort:        ":9001",
 		PostgresConfig:     "user=kk password=psw host=172.10.4.6 port=5432 database=lbauth sslmode=disable",
-		EnableJSONLogging:  false,
-		DisableAllLogging:  false,
-		Verbose:            false,
 		Opaurl:             "http://localhost:8181/v1/data/authzdata",
 		HttpCallTimeoutSec: 10,
 	}
 }
 
 func newFakeProxy(config *Config) (*lbDataAuthzProxy, error) {
-	logger, err := createLogger(config)
-	if err != nil {
-		return nil, err
-	}
 
 	lbdataauthz := &lbDataAuthzProxy{
 		config: config,
-		logger: logger,
 	}
 
 	// Prepare remote url for request proxying
-	lbdataauthz.upstream, err = url.Parse(config.Upstreamurl)
+	upstream, err := url.Parse(config.Upstreamurl)
 	if err != nil {
 		return nil, err
 	}
 
-	logger.Info("initializing the service with:", zap.String("upstreamurl:", config.Upstreamurl), zap.String("action", "initializing proxy"))
+	lbdataauthz.upstream = upstream
+
+	slog.Info("initializing the service with:", zap.String("upstreamurl:", config.Upstreamurl), zap.String("action", "initializing proxy"))
 
 	return lbdataauthz, nil
 }

@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"lbauthdata/authz"
+	"lbauthdata/logger"
 	"lbauthdata/permissions"
 	"lbauthdata/server"
 
@@ -22,33 +23,49 @@ func main() {
 	upstreamurl := os.Getenv("UPSTREAMURL")
 	exposedport := os.Getenv("EXPOSEDPORT")
 	postgresconfig := os.Getenv("POSTGRESCONFIG")
-	enablejsonlogging, _ := strconv.ParseBool(os.Getenv("ENABLEJSONLOGGING"))
-	disablealllogging, _ := strconv.ParseBool(os.Getenv("DISABLEALLLOGGING"))
-	verbose, _ := strconv.ParseBool(os.Getenv("VERBOSE"))
 	opaurl := os.Getenv("OPARURL")
+	levelmodules := os.Getenv("LOG_LEVELMODULES")
+	enablejsonlogging, _ := strconv.ParseBool(os.Getenv("LOG_ENABLEJSONLOGGING"))
+	disablealllogging, _ := strconv.ParseBool(os.Getenv("LOG_DISABLEALLLOGGING"))
+	disablestacktrace, _ := strconv.ParseBool(os.Getenv("LOG_DISABLESTACKTRACE"))
+	disablecaller, _ := strconv.ParseBool(os.Getenv("LOG_DISABLECALLER"))
+	development, _ := strconv.ParseBool(os.Getenv("LOG_DEVELOPMENT"))
 	httpcalltimeoutsec, _ := strconv.ParseInt(os.Getenv("HTTPCALLTIIMEOUTSEC"), 10, 0)
 
 	log.Println("ACTIVE ENVS:", "\n",
 		"upstreamurl:", upstreamurl, "\n",
 		"exposedport:", exposedport, "\n",
 		"postgresconfig:", postgresconfig, "\n",
+		"opaurl:", opaurl, "\n",
+		"levelmodules:", levelmodules, "\n",
 		"enablejsonlogging:", enablejsonlogging, "\n",
 		"disablealllogging:", disablealllogging, "\n",
-		"verbose:", verbose, "\n",
-		"opaurl:", opaurl, "\n",
+		"disablestacktrace:", disablestacktrace, "\n",
+		"disablecaller:", disablecaller, "\n",
+		"development:", development, "\n",
 		"httpcalltimeoutsec:", httpcalltimeoutsec)
 
-	config := &server.Config{
+	lconfig := &logger.LoggerConfig{
+		LevelModules:      levelmodules,
+		EnableJSONLogging: enablejsonlogging,
+		DisableAllLogging: disablealllogging,
+		DisableStackTrace: disablestacktrace,
+		DisableCaller:     disablecaller,
+		Development:       development,
+	}
+
+	sconfig := &server.Config{
 		Upstreamurl:        upstreamurl,
 		ExposedPort:        exposedport,
 		PostgresConfig:     postgresconfig,
-		EnableJSONLogging:  enablejsonlogging,
-		DisableAllLogging:  disablealllogging,
-		Verbose:            verbose,
 		Opaurl:             opaurl,
 		HttpCallTimeoutSec: httpcalltimeoutsec}
 
-	proxy, err := server.NewLbDataAuthzProxy(config)
+	// Configure loggers
+	logger.SetLoggerConfig(lconfig)
+
+	// Create new server instance
+	proxy, err := server.NewLbDataAuthzProxy(sconfig)
 	if err != nil {
 		panic(err)
 	}
@@ -60,7 +77,7 @@ func main() {
 	}
 
 	// Initialize injectable authzprovider
-	proxy.Authz, err = authz.NewHttpAuthzProvider(config)
+	proxy.Authz, err = authz.NewHttpAuthzProvider(sconfig)
 	if err != nil {
 		panic(err)
 	}
