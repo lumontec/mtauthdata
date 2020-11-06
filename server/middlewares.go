@@ -49,7 +49,7 @@ func (l *lbDataAuthzProxy) GroupPermissionsMiddleware(h http.HandlerFunc) http.H
 
 		mlog.Info("gathering permissions from db for groups", zap.Strings("groups:", groupsarray), zap.String("reqid:", reqId))
 
-		groupsArr, err := l.Permissions.GetGroupsPermissions(groupsarray)
+		groupsArr, err := l.Permissions.GetGroupsPermissions(groupsarray, reqId)
 		if err != nil {
 			mlog.Error("error gathering permissions:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
 			panic(err)
@@ -91,7 +91,7 @@ func (l *lbDataAuthzProxy) AuthzEnforcementMiddleware(h http.HandlerFunc) http.H
 
 		mlog.Info("enforcing authorization for context:", zap.String("context:", stringgroupmappings), zap.String("reqid:", reqId), zap.String("opaurl:", l.config.Opaurl))
 
-		opaResp, _ := l.Authz.GetAuthzDecision(stringgroupmappings)
+		opaResp, _ := l.Authz.GetAuthzDecision(stringgroupmappings, reqId)
 
 		if opaResp.Result.Allow == false {
 			mlog.Info("user is NOT ALLOWED to access data", zap.String("reqid:", reqId))

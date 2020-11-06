@@ -3,11 +3,11 @@ package interfaces
 import "lbauthdata/model"
 
 type PermissionProvider interface {
-	GetGroupsPermissions(groupsarray []string) (model.GroupPermMappings, error)
+	GetGroupsPermissions(groupsarray []string, reqId string) (model.GroupPermMappings, error)
 }
 
 type AuthzProvider interface {
-	GetAuthzDecision(groupmappings string) (model.OpaResp, error)
+	GetAuthzDecision(groupmappings string, reqId string) (model.OpaResp, error)
 }
 
 type Logger interface {

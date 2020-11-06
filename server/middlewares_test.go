@@ -18,7 +18,7 @@ import (
 
 type stubPermissionProvider struct{}
 
-func (sp *stubPermissionProvider) GetGroupsPermissions(groupsarray []string) (model.GroupPermMappings, error) {
+func (sp *stubPermissionProvider) GetGroupsPermissions(groupsarray []string, reqId string) (model.GroupPermMappings, error) {
 	// return testgroupmappings, nil
 	return model.GroupPermMappings{
 		Groups: []model.Mapping{
@@ -66,7 +66,7 @@ func (sp *stubPermissionProvider) GetGroupsPermissions(groupsarray []string) (mo
 
 type stubAuthzProvider struct{}
 
-func (sa *stubAuthzProvider) GetAuthzDecision(groupmappings string) (model.OpaResp, error) {
+func (sa *stubAuthzProvider) GetAuthzDecision(groupmappings string, reqId string) (model.OpaResp, error) {
 	return model.OpaResp{
 		Result: model.OpaJudgement{
 			Allow:          true,
@@ -124,7 +124,7 @@ func TestGroupPermissionsMiddleware(t *testing.T) {
 			panic(err)
 		}
 
-		wantpermissions, _ := sp.GetGroupsPermissions([]string{})
+		wantpermissions, _ := sp.GetGroupsPermissions([]string{}, "testid")
 		if diff := deep.Equal(gotpermissions, wantpermissions); diff != nil {
 			t.Error(diff)
 		}
@@ -143,12 +143,12 @@ func TestAuthzEnforcementMiddleware(t *testing.T) {
 	sp := &stubPermissionProvider{}
 	fl.Permissions = sp
 
-	testpermissions, _ := sp.GetGroupsPermissions([]string{})
+	testpermissions, _ := sp.GetGroupsPermissions([]string{}, "testid")
 
 	testPermArrbytes, err := json.Marshal(testpermissions)
 
 	if err != nil {
-		// l.logger.Error("error unmarshalling groupsArrbytes:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
+		slog.Error("error unmarshalling groupsArrbytes:", zap.String("error:", err.Error()))
 		panic(err)
 	}
 

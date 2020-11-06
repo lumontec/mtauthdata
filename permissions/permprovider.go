@@ -3,36 +3,40 @@ package permissions
 import (
 	"os"
 
+	"lbauthdata/logger"
 	"lbauthdata/model"
 
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx"
+	"go.uber.org/zap"
 )
 
 type Db struct {
 	conn *pgx.Conn
 }
 
+var log = logger.GetLogger("permissions")
+
 func NewDBPermissionProvider(connstr string) (*Db, error) {
-	// l.logger.Info("Creating database connection:", zap.String("dbconfig:", l.config.PostgresConfig))
+	log.Info("Creating database connection:", zap.String("dbconfig:", connstr))
 
 	pgConfig, err := pgx.ParseConnectionString(connstr)
 	if err != nil {
-		// l.logger.Error("Error parsing DB connection string:", zap.String("error:", err.Error()))
+		log.Error("Error parsing DB connection string:", zap.String("error:", err.Error()))
 		os.Exit(1)
 	}
 
 	// initialize db connection
 	dbconn, err := pgx.Connect(pgConfig)
 	if err != nil {
-		// l.logger.Error("Error during database connection:", zap.String("error:", err.Error()))
+		log.Error("Error during database connection:", zap.String("error:", err.Error()))
 		os.Exit(1)
 	}
 
 	return &Db{conn: dbconn}, nil
 }
 
-func (db *Db) GetGroupsPermissions(groupsarray []string) (model.GroupPermMappings, error) {
+func (db *Db) GetGroupsPermissions(groupsarray []string, reqId string) (model.GroupPermMappings, error) {
 
 	groupsquery := ""
 
@@ -44,7 +48,7 @@ func (db *Db) GetGroupsPermissions(groupsarray []string) (model.GroupPermMapping
 		}
 	}
 
-	// l.logger.Info("groupsquery", zap.String("query:", groupsquery))
+	log.Info("groupsquery", zap.String("query:", groupsquery))
 
 	// var id int64
 	// var group_uuid pgtype.UUID
@@ -71,7 +75,7 @@ func (db *Db) GetGroupsPermissions(groupsarray []string) (model.GroupPermMapping
 	FROM	roles_group_mapping
 	INNER JOIN roles ON roles_group_mapping.role_uuid = roles.uuid AND (` + groupsquery + `) GROUP BY roles_group_mapping.group_uuid;`)
 	if err != nil {
-		// l.logger.Error("during db query:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
+		log.Error("during db query:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
 		panic(err)
 	}
 	// rows.Close is called by rows.Next when all rows are read
@@ -123,7 +127,7 @@ func (db *Db) GetGroupsPermissions(groupsarray []string) (model.GroupPermMapping
 			&org_admin)
 
 		if err != nil {
-			// l.logger.Error("error scanning rows:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
+			log.Error("error scanning rows:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
 			panic(err)
 		}
 
@@ -147,11 +151,11 @@ func (db *Db) GetGroupsPermissions(groupsarray []string) (model.GroupPermMapping
 		// sum += id
 	}
 
-	// l.logger.Info("permissions were retreived for groups", zap.String("reqid:", reqId))
+	log.Info("permissions were retreived for groups", zap.String("reqid:", reqId))
 
 	// Any errors encountered by rows.Next or rows.Scan will be returned here
 	if rows.Err() != nil {
-		// l.logger.Error("error during rows next:", zap.String("error:", rows.Err().Error()), zap.String("reqid:", reqId))
+		log.Error("error during rows next:", zap.String("error:", rows.Err().Error()), zap.String("reqid:", reqId))
 		panic(rows.Err())
 	}
 
