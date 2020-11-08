@@ -1,9 +1,11 @@
 package logger
 
 import (
+	"lbauthdata/config"
 	"strings"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type level int
@@ -14,28 +16,23 @@ const (
 	ERROR
 )
 
-type LoggerConfig struct {
-	LevelModules      string
-	EnableJSONLogging bool
-	DisableAllLogging bool
-	DisableStackTrace bool
-	DisableCaller     bool
-	Development       bool
-}
-
 type ZapLogger struct {
 	modulename string
-	zlog       *zap.SugaredLogger
+	zlog       *zap.Logger
 }
 
-var modulelevels map[string]level
+func KeyVal(key string, val string) zapcore.Field {
+	return zap.String(key, val)
+}
+
+var modulelevels = map[string]level{}
 var jsonlgging bool
 var disablelogging bool
 var disablestacktrace bool
 var disablecaller bool
 var development bool
 
-func SetLoggerConfig(lc *LoggerConfig) {
+func SetLoggerConfig(lc *config.LoggerConfig) {
 
 	jsonlgging = lc.EnableJSONLogging
 	disablelogging = lc.DisableAllLogging
@@ -60,9 +57,9 @@ func SetLoggerConfig(lc *LoggerConfig) {
 	}
 }
 
-func newLogger(modulename string) (*zap.SugaredLogger, error) {
+func newLogger(modulename string) (*zap.Logger, error) {
 	if disablelogging {
-		return zap.NewNop().Sugar(), nil
+		return zap.NewNop(), nil
 	}
 
 	c := zap.NewProductionConfig()
@@ -89,7 +86,7 @@ func newLogger(modulename string) (*zap.SugaredLogger, error) {
 	}
 
 	logger, _ := c.Build()
-	return logger.Sugar(), nil
+	return logger, nil
 }
 
 func GetLogger(modulename string) *ZapLogger {
@@ -100,14 +97,14 @@ func GetLogger(modulename string) *ZapLogger {
 	}
 }
 
-func (zl *ZapLogger) Debug(args ...interface{}) {
-	zl.zlog.Debug(zl.modulename, args)
+func (zl *ZapLogger) Debug(msg string, ctx ...zapcore.Field) {
+	zl.zlog.Debug(msg, ctx...)
 }
 
-func (zl *ZapLogger) Info(args ...interface{}) {
-	zl.zlog.Info(zl.modulename, args)
+func (zl *ZapLogger) Info(msg string, ctx ...zapcore.Field) {
+	zl.zlog.Info(msg, ctx...)
 }
 
-func (zl *ZapLogger) Error(args ...interface{}) {
-	zl.zlog.Error(zl.modulename, args)
+func (zl *ZapLogger) Error(msg string, ctx ...zapcore.Field) {
+	zl.zlog.Error(msg, ctx...)
 }

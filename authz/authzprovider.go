@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"lbauthdata/config"
 	"lbauthdata/logger"
 	"lbauthdata/model"
-	"lbauthdata/server"
 
 	"go.uber.org/zap"
 )
@@ -23,7 +23,7 @@ type AuthzClient struct {
 	opaurl     string
 }
 
-func NewHttpAuthzProvider(config *server.Config) (*AuthzClient, error) {
+func NewHttpAuthzProvider(config *config.ServerConfig) (*AuthzClient, error) {
 	log.Info("Creating database connection:", zap.String("dbconfig:", config.PostgresConfig))
 
 	// Initializing http client

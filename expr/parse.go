@@ -394,7 +394,7 @@ func extractMetric(m string) string {
 	}
 
 	if quoteChar != 0 {
-		log.Debug("extractMetric: encountered unterminated string literal in:", m)
+		log.Debug("extractMetric: encountered unterminated string literal in " + m)
 		return ""
 	}
 

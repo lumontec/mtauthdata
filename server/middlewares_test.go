@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"lbauthdata/authz"
+	"lbauthdata/config"
 	"lbauthdata/model"
+	"lbauthdata/permissions"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -16,71 +19,8 @@ import (
 	"go.uber.org/zap"
 )
 
-type stubPermissionProvider struct{}
-
-func (sp *stubPermissionProvider) GetGroupsPermissions(groupsarray []string, reqId string) (model.GroupPermMappings, error) {
-	// return testgroupmappings, nil
-	return model.GroupPermMappings{
-		Groups: []model.Mapping{
-			{
-				Group_uuid: "e694ddf2-1790-addd-0f57-bc23b9d47fa3",
-				Permissions: model.Permissions{
-					Admin_iots:     false,
-					View_iots:      false,
-					Configure_iots: false,
-					Vpn_iots:       false,
-					Webpage_iots:   false,
-					Hmi_iots:       false,
-					Data_admin:     false,
-					Data_read:      false,
-					Data_cold_read: false,
-					Data_warm_read: false,
-					Data_hot_read:  false,
-					Services_admin: false,
-					Billing_admin:  false,
-					Org_admin:      false,
-				},
-			},
-			{
-				Group_uuid: "0dbd3c3e-0b44-4a4e-aa32-569f8951dc79",
-				Permissions: model.Permissions{
-					Admin_iots:     false,
-					View_iots:      false,
-					Configure_iots: false,
-					Vpn_iots:       false,
-					Webpage_iots:   false,
-					Hmi_iots:       false,
-					Data_admin:     false,
-					Data_read:      false,
-					Data_cold_read: false,
-					Data_warm_read: false,
-					Data_hot_read:  false,
-					Services_admin: false,
-					Billing_admin:  false,
-					Org_admin:      false,
-				},
-			},
-		},
-	}, nil
-}
-
-type stubAuthzProvider struct{}
-
-func (sa *stubAuthzProvider) GetAuthzDecision(groupmappings string, reqId string) (model.OpaResp, error) {
-	return model.OpaResp{
-		Result: model.OpaJudgement{
-			Allow:          true,
-			Allowed_groups: []string{"e694ddf2-1790-addd-0f57-bc23b9d47fa3", "0dbd3c3e-0b44-4a4e-aa32-569f8951dc79"},
-			Read_allowed:   []string{"0dbd3c3e-0b44-4a4e-aa32-569f8951dc79"},
-			Cold_allowed:   []string{"0dbd3c3e-0b44-4a4e-aa32-569f8951dc79"},
-			Warm_allowed:   []string{},
-			Hot_allowed:    []string{},
-		},
-	}, nil
-}
-
-func newFakeConfig() *Config {
-	return &Config{
+func newFakeConfig() *config.ServerConfig {
+	return &config.ServerConfig{
 		Upstreamurl:        "http://localhost:6060",
 		ExposedPort:        ":9001",
 		PostgresConfig:     "user=kk password=psw host=172.10.4.6 port=5432 database=lbauth sslmode=disable",
@@ -89,7 +29,7 @@ func newFakeConfig() *Config {
 	}
 }
 
-func newFakeProxy(config *Config) (*lbDataAuthzProxy, error) {
+func NewFakeProxy(config *config.ServerConfig) (*lbDataAuthzProxy, error) {
 
 	lbdataauthz := &lbDataAuthzProxy{
 		config: config,
@@ -113,8 +53,8 @@ func TestGroupPermissionsMiddleware(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
 	res := httptest.NewRecorder()
 	cfg := newFakeConfig()
-	fl, _ := newFakeProxy(cfg)
-	sp := &stubPermissionProvider{}
+	fl, _ := NewFakeProxy(cfg)
+	sp := &permissions.StubPermissionProvider{}
 	fl.Permissions = sp
 
 	permHandler := func(w http.ResponseWriter, r *http.Request) {
@@ -137,10 +77,10 @@ func TestGroupPermissionsMiddleware(t *testing.T) {
 func TestAuthzEnforcementMiddleware(t *testing.T) {
 
 	cfg := newFakeConfig()
-	fl, _ := newFakeProxy(cfg)
-	sa := &stubAuthzProvider{}
+	fl, _ := NewFakeProxy(cfg)
+	sa := &authz.StubAuthzProvider{}
 	fl.Authz = sa
-	sp := &stubPermissionProvider{}
+	sp := &permissions.StubPermissionProvider{}
 	fl.Permissions = sp
 
 	testpermissions, _ := sp.GetGroupsPermissions([]string{}, "testid")
@@ -174,7 +114,7 @@ func TestAuthzEnforcementMiddleware(t *testing.T) {
 func TestTagsFilteringMiddleware(t *testing.T) {
 
 	cfg := newFakeConfig()
-	fl, _ := newFakeProxy(cfg)
+	fl, _ := NewFakeProxy(cfg)
 
 	cases := []struct {
 		inQuery   string
@@ -207,7 +147,7 @@ func TestTagsFilteringMiddleware(t *testing.T) {
 func TestRenderFilteringMiddleware(t *testing.T) {
 
 	cfg := newFakeConfig()
-	fl, _ := newFakeProxy(cfg)
+	fl, _ := NewFakeProxy(cfg)
 
 	cases := []struct {
 		inQuery  string

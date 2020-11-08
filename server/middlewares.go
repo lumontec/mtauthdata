@@ -90,7 +90,7 @@ func (l *lbDataAuthzProxy) AuthzEnforcementMiddleware(h http.HandlerFunc) http.H
 		stringgroupmappings, ok := r.Context().Value("groupmappings").(string)
 
 		if !ok {
-			gplog.Error(zap.Error(ErrGmapExtract), zap.String("reqid:", reqId))
+			gplog.Error(ErrGmapExtract.Error(), logger.KeyVal("reqid", reqId))
 			http.Error(w, http.StatusText(400), 400)
 			return
 		}
@@ -140,7 +140,7 @@ func (l *lbDataAuthzProxy) TagsFilteringMiddleware(h http.HandlerFunc) http.Hand
 		grouptemps, ok := r.Context().Value("grouptemps").([]string)
 
 		if !ok {
-			tflog.Error(zap.Error(ErrGtmpExtract), zap.String("reqid:", reqId))
+			tflog.Error(ErrGtmpExtract.Error(), logger.KeyVal("reqid", reqId))
 			http.Error(w, http.StatusText(500), 500)
 			return
 		}
@@ -189,7 +189,7 @@ func (l *lbDataAuthzProxy) RenderFilteringMiddleware(h http.HandlerFunc) http.Ha
 		grouptemps, ok := r.Context().Value("grouptemps").([]string)
 
 		if !ok {
-			rflog.Error(ErrGtmpExtract, zap.String("reqid:", reqId))
+			rflog.Error(ErrGtmpExtract.Error(), logger.KeyVal("reqid", reqId))
 			http.Error(w, http.StatusText(500), 500)
 			return
 		}

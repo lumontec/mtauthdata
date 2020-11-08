@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"lbauthdata/authz"
+	"lbauthdata/config"
 	"lbauthdata/logger"
 	"lbauthdata/permissions"
 	"lbauthdata/server"
@@ -31,6 +32,7 @@ func main() {
 	disablecaller, _ := strconv.ParseBool(os.Getenv("LOG_DISABLECALLER"))
 	development, _ := strconv.ParseBool(os.Getenv("LOG_DEVELOPMENT"))
 	httpcalltimeoutsec, _ := strconv.ParseInt(os.Getenv("HTTPCALLTIIMEOUTSEC"), 10, 0)
+	stubdependencies, _ := strconv.ParseBool(os.Getenv("STUBDEPENDENCIES"))
 
 	log.Println("ACTIVE ENVS:", "\n",
 		"upstreamurl:", upstreamurl, "\n",
@@ -43,9 +45,10 @@ func main() {
 		"disablestacktrace:", disablestacktrace, "\n",
 		"disablecaller:", disablecaller, "\n",
 		"development:", development, "\n",
-		"httpcalltimeoutsec:", httpcalltimeoutsec)
+		"httpcalltimeoutsec:", httpcalltimeoutsec, "\n",
+		"stubdependencies:", stubdependencies)
 
-	lconfig := &logger.LoggerConfig{
+	lconfig := &config.LoggerConfig{
 		LevelModules:      levelmodules,
 		EnableJSONLogging: enablejsonlogging,
 		DisableAllLogging: disablealllogging,
@@ -54,7 +57,7 @@ func main() {
 		Development:       development,
 	}
 
-	sconfig := &server.Config{
+	sconfig := &config.ServerConfig{
 		Upstreamurl:        upstreamurl,
 		ExposedPort:        exposedport,
 		PostgresConfig:     postgresconfig,
@@ -70,16 +73,21 @@ func main() {
 		panic(err)
 	}
 
-	// Initialize injectable permissionsprovider
-	proxy.Permissions, err = permissions.NewDBPermissionProvider(postgresconfig)
-	if err != nil {
-		panic(err)
-	}
+	if stubdependencies { // Stub dependencies
+		proxy.Permissions = &permissions.StubPermissionProvider{}
+		proxy.Authz = &authz.StubAuthzProvider{}
+	} else {
 
-	// Initialize injectable authzprovider
-	proxy.Authz, err = authz.NewHttpAuthzProvider(sconfig)
-	if err != nil {
-		panic(err)
+		// Initialize injectable permissions provider
+		proxy.Permissions, err = permissions.NewDBPermissionProvider(postgresconfig)
+		if err != nil {
+			panic(err)
+		}
+		// Initialize injectable authz provider
+		proxy.Authz, err = authz.NewHttpAuthzProvider(sconfig)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	proxy.RunServer()

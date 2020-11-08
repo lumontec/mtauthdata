@@ -87,3 +87,92 @@ Filter tag queries by groups:
 curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/tags/autoComplete/tags?expr=data:pr:ext:acl:grouptemp=~(^group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:hot$)"
 
 
+
+
+
+
+CLEAN ORIGINAL REQUESTS:
+
+
+1- look for metrics (level by level):
+req:
+curl -X POST -H "X-Org-Id: 2" -H "Content-Type: application/x-www-form-urlencoded"  "http://172.18.3.2:6060/metrics/find?from=1577011620&until=1577033220" -d "query=*"
+resp:
+[{"allowChildren":1,"expandable":1,"leaf":0,"id":"copy","text":"copy","context":{}},{"allowChildren":1,"expandable":1,"leaf":0,"id":"lucaoperations","text":"lucaoperations","context":{}},{"allowChildren":1,"expandable":1,"leaf":0,"id":"demo","text":"demo","context":{}},{"allowChildren":1,"expandable":1,"leaf":0,"id":"demotags","text":"demotags","context":{}},{"allowChildren":1,"expandable":1,"leaf":0,"id":"operations02","text":"operations02","context":{}},{"allowChildren":1,"expandable":1,"leaf":0,"id":"mindsphere","text":"mindsphere","context":{}},{"allowChildren":1,"expandable":1,"leaf":0,"id":"demolucaoperations","text":"demolucaoperations","context":{}},{"allowChildren":1,"expandable":1,"leaf":0,"id":"devoperations02","text":"devoperations02"....
+
+
+solution:
+This is kind of a problem to implement because, if multitenancy is not enabled all the metrics system-wide are visible from anybody querying grafana. Moreover tags cannot be used for filtering here. The only way could be really to force prepend the organization uuid to every data from the org and also for every query of this type, but this gives problems if i want the data to be portable and completely breaks compatibility with previous customer solutions.
+By now I have no solution for this. I would force the user to use the “name = metricname” type of notation, which naturally implements tags, that I can use to filter / authorize, see after ..
+
+
+
+2- look for all visible tag keys:
+req:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/tags/autoComplete/tags"
+resp:
+["fabrizio","meta","name","tag"]
+solution:
+All /tags routes come with a very handy filtering function, that can be used to retrieve all the tags keys, values, and metrics that are associated also with one or more particular tag e.g. (&expr=tag=test&expr=...), this can be used for attaching the user allowed resources directly to the request in order to limit the user visible tags to just to a specific range. In the following example tags are filtered by groups and temperature:
+example:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/tags/autoComplete/tags?expr=data:pr:ext:acl:grouptemp=~(^group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:hot$)"
+
+
+
+
+3-look for all visible tag keys with key prefix:
+req:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/tags/autoComplete/tags?tagPrefix=na"
+resp:
+["name"]
+solution:
+Same story as above
+example:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/tags/autoComplete/tags?tagPrefix=na&expr=data:pr:ext:acl:grouptemp=~(^group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:hot$)"
+
+
+
+4- look for all visible tag values with key:
+req:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/tags/autoComplete/values?tag=name"
+resp:
+["copy.Axis01","copy.Axis02","copy.Axis03","copy.Axis04","copy.lucaoperations.devoperationsplc02.descrizioneParam13","copy.lucaoperations.statusinfo.avgrtt","copy.lucaoperations.statusinfo.queuesize","copy.mindsphere.next_iot.ARE.car_1.telemetry.Angle0.deg"]
+solution:
+same story as above
+example:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/tags/autoComplete/values?tag=name&expr=data:pr:ext:acl:grouptemp=~(^group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:hot$)"
+
+
+
+5- look for all visible tag values with key and value prefix:
+req:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/tags/autoComplete/values?tag=name&valuePrefix=demot"
+resp:
+["demotags.iot1.metric0","demotags.iot1.metric1","demotags.iot1.metric10","demotags.iot1.metric100","demotags.iot1.metric101","demotags.iot1.metric102","demotags.iot1.metric103","demotags.iot1.metric104","demotags.iot1.metric105","demotags.iot1.metric106"]
+solution:
+same story as above
+example:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/tags/autoComplete/values?tag=name&valuePrefix=demotags.iot1.metric16&expr=data:pr:ext:acl:grouptemp=~(^group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:hot$)"
+
+
+6- normal data queries without tags:
+req:
+/render?target=demotags.iot1.metric0&from=-5min&until=now&format=json&maxDataPoints=653
+resp:
+[{"target":"demotags.iot1.metric0","tags***":{"name":"demotags.iot1.metric0"},"datapoints":[[null,1577034650],[null,1577034660],[null,1577034670],[null,1577034680],[null,1577034690],[null,1577034700],[null,1577034710],[null,1577034720],[null,1577034730],[null,1577034740],[null,1577034750],[null,1577034760],[null,1577034770],[null,1577034780],[null,1577034790],[null,1577034800],[null,1577034810],[null,1577034820],[null,1577034830],[null,1577034840],[null,1577034850],[null,1577034860],[null,1577034870],[null,1577034880],[null,1577034890],[null,1577034900],[null,1577034910],[null,1577034920],[null,1577034930],[null,1577034940]]}]
+solution:
+No solution for this, all requests have to be reformatted by using the “name” tag method
+
+
+7- requests filtered by tag
+req:
+target=seriesByTag('name%3Ddemotags.iot1.metric0')&from=-5min&until=now&format=json&maxDataPoints=653
+resp:
+[{"target":"demotags.iot1.metric0;tag=nome","tags***":{"tag":"nome","name":"demotags.iot1.metric0"},"datapoints":[[null,1577034890],[null,1577034900],[null,1577034910],[null,1577034920],[null,1577034930],[null,1577034940],[null,1577034950],[null,1577034960],[null,1577034970],[null,1577034980],[null,1577034990],[null,1577035000],[null,1577035010],[null,1577035020],[null,1577035030],[null,1577035040],[null,1577035050],[1,1577035060],[301,1577035070],[601,1577035080],[901,1577035090],[1201,1577035100],[1501,1577035110],[1801,1577035120],[2101,1577035130],[2401,1577035140],[2701,1577035150],[3001,1577035160],[3301,1577035170],[3601,1577035180]]}]
+solution:
+the request gets intercepted by the backend and filtered as:
+“/authz/render?target=seriesByTag('name=~statsd.fakesite...', 'data_tag=hot', 'data_tag=cold')”
+example:
+curl -H "X-Org-Id: 2" "http://172.18.3.2:6060/render?target=seriesByTag('name=~(^demotags.iot1.metric0$)','data:pr:ext:acl:grouptemp=~(^group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:hot$)')&from=-5min&until=now&format=json&maxDataPoints=653
+
+
