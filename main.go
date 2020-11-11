@@ -1,15 +1,14 @@
 package main
 
 import (
-	"log"
-	"os"
-	"strconv"
-
 	"lbauthdata/authz"
 	"lbauthdata/config"
 	"lbauthdata/logger"
 	"lbauthdata/permissions"
 	"lbauthdata/server"
+	"log"
+	"os"
+	"strconv"
 
 	"github.com/joho/godotenv"
 )
@@ -57,6 +56,9 @@ func main() {
 		Development:       development,
 	}
 
+	logger.SetLoggerConfig(lconfig)
+	rlog := logger.NewRootLogger()
+
 	sconfig := &config.ServerConfig{
 		Upstreamurl:        upstreamurl,
 		ExposedPort:        exposedport,
@@ -64,14 +66,13 @@ func main() {
 		Opaurl:             opaurl,
 		HttpCallTimeoutSec: httpcalltimeoutsec}
 
-	// Configure loggers
-	logger.SetLoggerConfig(lconfig)
-
 	// Create new server instance
 	proxy, err := server.NewLbDataAuthzProxy(sconfig)
 	if err != nil {
 		panic(err)
 	}
+
+	proxy.Log = rlog
 
 	if stubdependencies { // Stub dependencies
 		proxy.Permissions = &permissions.StubPermissionProvider{}

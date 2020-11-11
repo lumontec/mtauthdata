@@ -1,6 +1,9 @@
 package interfaces
 
-import "lbauthdata/model"
+import (
+	"lbauthdata/logger"
+	"lbauthdata/model"
+)
 
 type PermissionProvider interface {
 	GetGroupsPermissions(groupsarray []string, reqId string) (model.GroupPermMappings, error)
@@ -11,7 +14,10 @@ type AuthzProvider interface {
 }
 
 type Logger interface {
-	Debug(arg string)
-	Info(arg string)
-	Error(arg string)
+	Debug(arg ...interface{})
+	Info(arg ...interface{})
+	Error(arg ...interface{})
+	// NewRootLogger(arg ...interface{}) *logger.Logger
+	ChildCathegory(cathegory string) *logger.Logger
+	// SetLoggerConfig(config *config.LoggerConfig)
 }

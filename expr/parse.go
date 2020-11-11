@@ -3,15 +3,13 @@ package expr
 import (
 	"errors"
 	"fmt"
-	"lbauthdata/logger"
 	"reflect"
 	"strconv"
 	"strings"
 
 	"github.com/grafana/metrictank/util"
+	"github.com/rs/zerolog/log"
 )
-
-var log = logger.GetLogger("expr")
 
 var (
 	ErrMissingArg          = errors.New("argument missing")

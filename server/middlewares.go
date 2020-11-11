@@ -40,15 +40,11 @@ var (
 	ErrGtmpExtract = errors.New("cannot extract grouptemps from ctx")
 )
 
-var gplog = logger.GetLogger("middlewares.grouppermissions")
-var azlog = logger.GetLogger("middlewares.authorization")
-var tflog = logger.GetLogger("middlewares.tagsfilter")
-var rflog = logger.GetLogger("middlewares.renderfilter")
-var mtlog = logger.GetLogger("middlewares.mtproxy")
-
 func (l *lbDataAuthzProxy) GroupPermissionsMiddleware(h http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reqId := middleware.GetReqID(r.Context())
+
+		gplog := l.Log.ChildCathegory("permissions")
 
 		groupsarray := []string{
 			"e694ddf2-1790-addd-0f57-bc23b9d47fa3",
@@ -86,26 +82,28 @@ func (l *lbDataAuthzProxy) GroupPermissionsMiddleware(h http.HandlerFunc) http.H
 func (l *lbDataAuthzProxy) AuthzEnforcementMiddleware(h http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
+		alog := l.Log.ChildCathegory("atuhz")
+
 		reqId := middleware.GetReqID(r.Context())
 		stringgroupmappings, ok := r.Context().Value("groupmappings").(string)
 
 		if !ok {
-			gplog.Error(ErrGmapExtract.Error(), logger.KeyVal("reqid", reqId))
+			alog.Error(ErrGmapExtract.Error(), logger.SetCtx("reqid", reqId))
 			http.Error(w, http.StatusText(400), 400)
 			return
 		}
 
-		gplog.Debug("enforcing authorization for context:", zap.String("context:", stringgroupmappings), zap.String("reqid:", reqId), zap.String("opaurl:", l.config.Opaurl))
+		alog.Debug("enforcing authorization for context:", zap.String("context:", stringgroupmappings), zap.String("reqid:", reqId), zap.String("opaurl:", l.config.Opaurl))
 
 		opaResp, _ := l.Authz.GetAuthzDecision(stringgroupmappings, reqId)
 
 		if opaResp.Result.Allow == false {
-			gplog.Info("user is NOT ALLOWED to access data", zap.String("reqid:", reqId))
+			alog.Info("user is NOT ALLOWED to access data", zap.String("reqid:", reqId))
 			http.Error(w, http.StatusText(400), 400)
 			return
 		} else {
 
-			gplog.Debug("user is allowed to access data, will generate grouptemps", zap.String("reqid:", reqId))
+			alog.Debug("user is allowed to access data, will generate grouptemps", zap.String("reqid:", reqId))
 
 			grouptemps := []string{}
 			for _, group := range opaResp.Result.Read_allowed {
@@ -121,7 +119,7 @@ func (l *lbDataAuthzProxy) AuthzEnforcementMiddleware(h http.HandlerFunc) http.H
 				grouptemps = append(grouptemps, "group:"+group+":temp:hot")
 			}
 
-			gplog.Debug("generated grouptemps", zap.Strings("grouptemps:", grouptemps), zap.String("reqid:", reqId))
+			alog.Debug("generated grouptemps", zap.Strings("grouptemps:", grouptemps), zap.String("reqid:", reqId))
 
 			ctx := r.Context()
 			ctx = context.WithValue(ctx, "grouptemps", grouptemps)
@@ -135,12 +133,14 @@ func (l *lbDataAuthzProxy) AuthzEnforcementMiddleware(h http.HandlerFunc) http.H
 func (l *lbDataAuthzProxy) TagsFilteringMiddleware(h http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
+		tflog := l.Log.ChildCathegory("tagsfilter")
+
 		reqId := middleware.GetReqID(r.Context())
 
 		grouptemps, ok := r.Context().Value("grouptemps").([]string)
 
 		if !ok {
-			tflog.Error(ErrGtmpExtract.Error(), logger.KeyVal("reqid", reqId))
+			tflog.Error(ErrGtmpExtract.Error(), logger.SetCtx("reqid", reqId))
 			http.Error(w, http.StatusText(500), 500)
 			return
 		}

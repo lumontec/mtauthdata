@@ -16,12 +16,30 @@ const (
 	ERROR
 )
 
-type ZapLogger struct {
+type Logger struct {
 	modulename string
-	zlog       *zap.Logger
+	zlog       *zap.SugaredLogger
 }
 
-func KeyVal(key string, val string) zapcore.Field {
+func (l *Logger) ChildCathegory(cathegory string) *Logger {
+	n := *l
+	n.zlog = l.zlog.Named(cathegory)
+	return &n
+}
+
+func (l *Logger) Debug(args ...interface{}) {
+	l.zlog.Debug(args...)
+}
+
+func (l *Logger) Info(args ...interface{}) {
+	l.zlog.Info(args...)
+}
+
+func (l *Logger) Error(args ...interface{}) {
+	l.zlog.Error(args...)
+}
+
+func SetCtx(key string, val string) zapcore.Field {
 	return zap.String(key, val)
 }
 
@@ -57,9 +75,9 @@ func SetLoggerConfig(lc *config.LoggerConfig) {
 	}
 }
 
-func newLogger(modulename string) (*zap.Logger, error) {
+func newZapLogger(rootname string) (*zap.SugaredLogger, error) {
 	if disablelogging {
-		return zap.NewNop(), nil
+		return zap.NewNop().Sugar(), nil
 	}
 
 	c := zap.NewProductionConfig()
@@ -71,40 +89,40 @@ func newLogger(modulename string) (*zap.Logger, error) {
 
 	c.Development = development
 
-	switch modulelevels[modulename] {
-	case DEBUG:
-		c.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
-		break
+	// switch modulelevels[modulename] {
+	// case DEBUG:
+	// 	c.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+	// 	break
 
-	case INFO:
-		c.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
-		break
+	// case INFO:
+	// 	c.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	// 	break
 
-	case ERROR:
-		c.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
-		break
-	}
+	// case ERROR:
+	// 	c.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	// 	break
+	// }
 
 	logger, _ := c.Build()
-	return logger, nil
+	return logger.Named(rootname).Sugar(), nil
 }
 
-func GetLogger(modulename string) *ZapLogger {
-	zlogger, _ := newLogger(modulename)
-	return &ZapLogger{
-		modulename: modulename,
+func NewRootLogger() *Logger {
+	zlogger, _ := newZapLogger("root")
+	return &Logger{
+		modulename: "root",
 		zlog:       zlogger,
 	}
 }
 
-func (zl *ZapLogger) Debug(msg string, ctx ...zapcore.Field) {
-	zl.zlog.Debug(msg, ctx...)
-}
+// func (zl *ZapLogger) Debug(msg string, ctx ...zapcore.Field) {
+// 	zl.zlog.Debug(msg, ctx...)
+// }
 
-func (zl *ZapLogger) Info(msg string, ctx ...zapcore.Field) {
-	zl.zlog.Info(msg, ctx...)
-}
+// func (zl *ZapLogger) Info(msg string, ctx ...zapcore.Field) {
+// 	zl.zlog.Info(msg, ctx...)
+// }
 
-func (zl *ZapLogger) Error(msg string, ctx ...zapcore.Field) {
-	zl.zlog.Error(msg, ctx...)
-}
+// func (zl *ZapLogger) Error(msg string, ctx ...zapcore.Field) {
+// 	zl.zlog.Error(msg, ctx...)
+// }
