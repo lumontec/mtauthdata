@@ -16,23 +16,23 @@ import (
 )
 
 //--------------------
-//	MIDDLEWARE CHAIN |
+//  MIDDLEWARE CHAIN |
 //--------------------
 //
 //  Httpreq -> GroupPermissionsMiddleware -> groupmappings
-//									|
-//									v
+//                                  |
+//                                  v
 //  groupmappings -> AuthzEnforcementMiddleware -> grouptemps
-//									|
+//                                  |
 //                                  |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-//									|                                                 |
-//									v                                                 v
+//                                  |                                                 |
+//                                  v                                                 v
 //  grouptemps -> TagsFilteringMiddleware -> rawquery         grouptemps -> RenderFilteringMiddleware -> rawquery
 //                                  |                                                 |
 //                                  |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _|
 //                                                       |
 //                                                       v
-//	                                    rawquery -> proxyhandler
+//                                      rawquery -> proxyhandler
 //
 
 func (l *lbDataAuthzProxy) GroupPermissionsMiddleware(h http.HandlerFunc) http.HandlerFunc {
