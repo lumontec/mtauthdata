@@ -15,37 +15,51 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 
-	"lbauthdata/config"
 	"lbauthdata/interfaces"
-	"lbauthdata/logger"
 	"lbauthdata/model"
 
 	"go.uber.org/zap"
 )
 
+type Config struct {
+	Upstreamurl        string
+	ExposedPort        string
+	PostgresConfig     string
+	EnableJSONLogging  bool
+	DisableAllLogging  bool
+	Verbose            bool
+	Opaurl             string
+	HttpCallTimeoutSec int64
+}
+
 type lbDataAuthzProxy struct {
-	config       *config.ServerConfig
+	config       *Config
 	upstream     *url.URL
+	logger       *zap.Logger
 	reverseproxy *httputil.ReverseProxy
 	Permissions  interfaces.PermissionProvider
 	Authz        interfaces.AuthzProvider
-	Log          interfaces.Logger
+	// httpclient   *http.Client
 }
 
-func NewLbDataAuthzProxy(config *config.ServerConfig) (*lbDataAuthzProxy, error) {
+func NewLbDataAuthzProxy(config *Config) (*lbDataAuthzProxy, error) {
+	logger, err := createLogger(config)
+	if err != nil {
+		return nil, err
+	}
 
 	lbdataauthz := &lbDataAuthzProxy{
 		config: config,
+		logger: logger,
 	}
 
-	upstream, err := url.Parse(config.Upstreamurl)
+	// Prepare remote url for request proxying
+	lbdataauthz.upstream, err = url.Parse(config.Upstreamurl)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing upstreamurl: %w", err)
+		return nil, err
 	}
 
-	lbdataauthz.upstream = upstream
-
-	// Logger.Info("initializing the service", logger.SetCtx("upstreamurl", config.Upstreamurl), logger.SetCtx("action", "initializing proxy"))
+	logger.Info("initializing the service with:", zap.String("upstreamurl:", config.Upstreamurl), zap.String("action", "initializing proxy"))
 
 	lbdataauthz.reverseproxy = httputil.NewSingleHostReverseProxy(lbdataauthz.upstream)
 	lbdataauthz.reverseproxy.ModifyResponse = lbdataauthz.CleanResponse
@@ -55,13 +69,12 @@ func NewLbDataAuthzProxy(config *config.ServerConfig) (*lbDataAuthzProxy, error)
 
 func (l *lbDataAuthzProxy) RunServer() error {
 
-	l.Log.Info("starting the service...", logger.SetCtx("port", l.config.ExposedPort))
-
+	l.logger.Info("starting the service...", zap.String("port:", l.config.ExposedPort))
 	r := l.createServerRouting()
 
 	err := http.ListenAndServe(l.config.ExposedPort, r)
 	if err != nil {
-		return fmt.Errorf("error serving proxy: %w", err)
+		panic(err)
 	}
 
 	return nil
@@ -104,13 +117,36 @@ func (l *lbDataAuthzProxy) createServerRouting() chi.Router {
 	return r
 }
 
+func createLogger(config *Config) (*zap.Logger, error) {
+	if config.DisableAllLogging {
+		return zap.NewNop(), nil
+	}
+
+	c := zap.NewProductionConfig()
+	c.DisableStacktrace = true
+	c.DisableCaller = true
+	// are we enabling json logging?
+	if !config.EnableJSONLogging {
+		c.Encoding = "console"
+	}
+	// are we running verbose mode?
+	if config.Verbose {
+		c.DisableCaller = false
+		c.Development = true
+		c.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+	}
+
+	return c.Build()
+}
+
 func (l *lbDataAuthzProxy) CleanResponse(r *http.Response) error {
 
 	reqId := middleware.GetReqID(r.Request.Context())
 
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return fmt.Errorf("cleanresponse error reading MT response body: %w", err)
+		l.logger.Error("Error reading MT response body", zap.String("error", err.Error()))
+		return err
 	}
 
 	var jsonResp []byte
@@ -120,64 +156,71 @@ func (l *lbDataAuthzProxy) CleanResponse(r *http.Response) error {
 		var mtRespRender model.Series
 
 		if err := json.Unmarshal(b, &mtRespRender); err != nil {
-			return fmt.Errorf("cleanresponse /render error unmarshalling MT response body: %w", err)
+			l.logger.Error("Error unmarshalling MT response body", zap.String("error", err.Error()))
+			return err
 		}
 
-		l.Log.Debug("pre-clean response", zap.Any("/render", mtRespRender), logger.SetCtx("reqid", reqId))
+		l.logger.Info("pre-clean response:", zap.Any("/render", mtRespRender), zap.String("reqid:", reqId))
 
 		clMtRespRender, _ := cleanRender(mtRespRender[0])
 
-		l.Log.Debug("cleaned response:", zap.Any("/render", clMtRespRender), logger.SetCtx("reqid", reqId))
+		l.logger.Info("cleaned response:", zap.Any("/render", clMtRespRender), zap.String("reqid:", reqId))
 
 		jsonResp, err = json.Marshal(clMtRespRender)
 		if err != nil {
-			return fmt.Errorf("cleanresponse /render error marshalling json render response: %w", err)
+			l.logger.Error("Error marshalling json render response", zap.String("error", err.Error()))
+			return err
 		}
 
 	case "/tags/autoComplete/tags":
 		var mtRespTags model.Tags
 
 		if err := json.Unmarshal(b, &mtRespTags); err != nil {
-			return fmt.Errorf("cleanresponse /tags/autoComplete/tags error unmarshalling MT response body: %w", err)
+			l.logger.Error("Error unmarshalling MT response body", zap.String("error", err.Error()))
+			return err
 		}
 
-		l.Log.Debug("pre-clean response", zap.Any("/tags/autoComplete/tags", mtRespTags), logger.SetCtx("reqid", reqId))
+		l.logger.Info("pre-clean response:", zap.Any("/tags/autoComplete/tags", mtRespTags), zap.String("reqid:", reqId))
 
 		err, mtRespTagsClean := cleanTags(mtRespTags)
 		if err != nil {
-			return fmt.Errorf("cleanresponse /tags/autoComplete/tags error cleaning MT response tag keys: %w", err)
+			l.logger.Error("Error cleaning MT response tag keys", zap.String("error", err.Error()))
+			return err
 		}
 
-		l.Log.Debug("cleaned response:", zap.Any("/tags/autoComplete/tags", mtRespTagsClean), logger.SetCtx("reqid", reqId))
+		l.logger.Info("cleaned response:", zap.Any("/tags/autoComplete/tags", mtRespTagsClean), zap.String("reqid:", reqId))
 
 		jsonResp, err = json.Marshal(mtRespTagsClean)
 		if err != nil {
-			return fmt.Errorf("cleanresponse /tags/autoComplete/tags error marshalling MT response body: %w", err)
+			l.logger.Error("Error unmarshalling MT response body", zap.String("error", err.Error()))
+			return err
 		}
 
 	case "/tags/autoComplete/values":
 		var mtRespTags model.Tags
 
 		if err := json.Unmarshal(b, &mtRespTags); err != nil {
-			return fmt.Errorf("cleanresponse /tags/autoComplete/values error unmarshalling MT response body: %w", err)
+			l.logger.Error("Error unmarshalling MT response body", zap.String("error", err.Error()))
+			return err
 		}
 
-		l.Log.Debug("pre-clean response:", zap.Any("/tags/autoComplete/values", mtRespTags), logger.SetCtx("reqid", reqId))
+		l.logger.Info("pre-clean response:", zap.Any("/tags/autoComplete/values", mtRespTags), zap.String("reqid:", reqId))
 
 		err, mtRespTagsClean := cleanTags(mtRespTags)
 		if err != nil {
-			return fmt.Errorf("cleanresponse /tags/autoComplete/values error cleaning MT response tag values: %w", err)
+			l.logger.Error("Error cleaning MT response tag values", zap.String("error", err.Error()))
 		}
 
-		l.Log.Debug("cleaned response:", zap.Any("/tags/autoComplete/values", mtRespTagsClean), logger.SetCtx("reqid", reqId))
+		l.logger.Info("cleaned response:", zap.Any("/tags/autoComplete/values", mtRespTagsClean), zap.String("reqid:", reqId))
 
 		jsonResp, err = json.Marshal(mtRespTagsClean)
 		if err != nil {
-			return fmt.Errorf("cleanresponse /tags/autoComplete/values error marshalling MT response body: %w", err)
+			l.logger.Error("Error unmarshalling MT response body", zap.String("error", err.Error()))
+			return err
 		}
 
 		//	defalut:
-		//		slog.Error("Error unmarshalling MT response body", zap.String("error", err.Error()))
+		//		l.logger.Error("Error unmarshalling MT response body", zap.String("error", err.Error()))
 		//		return nil
 	}
 
@@ -186,6 +229,14 @@ func (l *lbDataAuthzProxy) CleanResponse(r *http.Response) error {
 	r.Body = ioutil.NopCloser(buf)
 	r.Header["Content-Length"] = []string{fmt.Sprint(buf.Len())}
 	return nil
+
+	// var responseContent []interface{}
+	// err := parseResponse(r, &responseContent)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// log.Println(responseContent)
 }
 
 func cleanRender(mtRespCp model.Serie) (model.Serie, error) {
@@ -325,7 +376,7 @@ func cleanTags(mtResp model.Tags) (err error, cleantags []string) {
 func parseResponse(res *http.Response, unmarshalStruct *interface{}) error {
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		return fmt.Errorf("parseResponse error reading body: %w", err)
+		return err
 	}
 	res.Body.Close()
 

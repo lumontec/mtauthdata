@@ -1,14 +1,13 @@
 package main
 
 import (
-	"lbauthdata/authz"
-	"lbauthdata/config"
-	"lbauthdata/logger"
-	"lbauthdata/permissions"
-	"lbauthdata/server"
 	"log"
 	"os"
 	"strconv"
+
+	"lbauthdata/authz"
+	"lbauthdata/permissions"
+	"lbauthdata/server"
 
 	"github.com/joho/godotenv"
 )
@@ -23,72 +22,47 @@ func main() {
 	upstreamurl := os.Getenv("UPSTREAMURL")
 	exposedport := os.Getenv("EXPOSEDPORT")
 	postgresconfig := os.Getenv("POSTGRESCONFIG")
+	enablejsonlogging, _ := strconv.ParseBool(os.Getenv("ENABLEJSONLOGGING"))
+	disablealllogging, _ := strconv.ParseBool(os.Getenv("DISABLEALLLOGGING"))
+	verbose, _ := strconv.ParseBool(os.Getenv("VERBOSE"))
 	opaurl := os.Getenv("OPARURL")
-	levelmodules := os.Getenv("LOG_LEVELMODULES")
-	enablejsonlogging, _ := strconv.ParseBool(os.Getenv("LOG_ENABLEJSONLOGGING"))
-	disablealllogging, _ := strconv.ParseBool(os.Getenv("LOG_DISABLEALLLOGGING"))
-	disablestacktrace, _ := strconv.ParseBool(os.Getenv("LOG_DISABLESTACKTRACE"))
-	disablecaller, _ := strconv.ParseBool(os.Getenv("LOG_DISABLECALLER"))
-	development, _ := strconv.ParseBool(os.Getenv("LOG_DEVELOPMENT"))
 	httpcalltimeoutsec, _ := strconv.ParseInt(os.Getenv("HTTPCALLTIIMEOUTSEC"), 10, 0)
-	stubdependencies, _ := strconv.ParseBool(os.Getenv("STUBDEPENDENCIES"))
 
 	log.Println("ACTIVE ENVS:", "\n",
 		"upstreamurl:", upstreamurl, "\n",
 		"exposedport:", exposedport, "\n",
 		"postgresconfig:", postgresconfig, "\n",
-		"opaurl:", opaurl, "\n",
-		"levelmodules:", levelmodules, "\n",
 		"enablejsonlogging:", enablejsonlogging, "\n",
 		"disablealllogging:", disablealllogging, "\n",
-		"disablestacktrace:", disablestacktrace, "\n",
-		"disablecaller:", disablecaller, "\n",
-		"development:", development, "\n",
-		"httpcalltimeoutsec:", httpcalltimeoutsec, "\n",
-		"stubdependencies:", stubdependencies)
+		"verbose:", verbose, "\n",
+		"opaurl:", opaurl, "\n",
+		"httpcalltimeoutsec:", httpcalltimeoutsec)
 
-	lconfig := &config.LoggerConfig{
-		LevelModules:      levelmodules,
-		EnableJSONLogging: enablejsonlogging,
-		DisableAllLogging: disablealllogging,
-		DisableStackTrace: disablestacktrace,
-		DisableCaller:     disablecaller,
-		Development:       development,
-	}
-
-	logger.SetLoggerConfig(lconfig)
-	rlog := logger.NewRootLogger()
-
-	sconfig := &config.ServerConfig{
+	config := &server.Config{
 		Upstreamurl:        upstreamurl,
 		ExposedPort:        exposedport,
 		PostgresConfig:     postgresconfig,
+		EnableJSONLogging:  enablejsonlogging,
+		DisableAllLogging:  disablealllogging,
+		Verbose:            verbose,
 		Opaurl:             opaurl,
 		HttpCallTimeoutSec: httpcalltimeoutsec}
 
-	// Create new server instance
-	proxy, err := server.NewLbDataAuthzProxy(sconfig)
+	proxy, err := server.NewLbDataAuthzProxy(config)
 	if err != nil {
 		panic(err)
 	}
 
-	proxy.Log = rlog
+	// Initialize injectable permissionsprovider
+	proxy.Permissions, err = permissions.NewDBPermissionProvider(postgresconfig)
+	if err != nil {
+		panic(err)
+	}
 
-	if stubdependencies { // Stub dependencies
-		proxy.Permissions = &permissions.StubPermissionProvider{}
-		proxy.Authz = &authz.StubAuthzProvider{}
-	} else {
-
-		// Initialize injectable permissions provider
-		proxy.Permissions, err = permissions.NewDBPermissionProvider(postgresconfig)
-		if err != nil {
-			panic(err)
-		}
-		// Initialize injectable authz provider
-		proxy.Authz, err = authz.NewHttpAuthzProvider(sconfig)
-		if err != nil {
-			panic(err)
-		}
+	// Initialize injectable authzprovider
+	proxy.Authz, err = authz.NewHttpAuthzProvider(config)
+	if err != nil {
+		panic(err)
 	}
 
 	proxy.RunServer()

@@ -9,10 +9,10 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/middleware"
-	"go.uber.org/zap"
 
 	"lbauthdata/expr"
-	"lbauthdata/logger"
+
+	"go.uber.org/zap"
 )
 
 //--------------------
@@ -24,8 +24,8 @@ import (
 //									v
 //  groupmappings -> AuthzEnforcementMiddleware -> grouptemps
 //									|
-//                              | /tags | _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _| /render |
-//                                  |                                                 |
+//                                  |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+//									|                                                 |
 //									v                                                 v
 //  grouptemps -> TagsFilteringMiddleware -> rawquery         grouptemps -> RenderFilteringMiddleware -> rawquery
 //                                  |                                                 |
@@ -35,16 +35,9 @@ import (
 //	                                    rawquery -> proxyhandler
 //
 
-var (
-	ErrGmapExtract = errors.New("cannot extract groupmappings from ctx")
-	ErrGtmpExtract = errors.New("cannot extract grouptemps from ctx")
-)
-
 func (l *lbDataAuthzProxy) GroupPermissionsMiddleware(h http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reqId := middleware.GetReqID(r.Context())
-
-		gplog := l.Log.ChildCathegory("permissions")
 
 		groupsarray := []string{
 			"e694ddf2-1790-addd-0f57-bc23b9d47fa3",
@@ -52,24 +45,27 @@ func (l *lbDataAuthzProxy) GroupPermissionsMiddleware(h http.HandlerFunc) http.H
 			"5033357b-25f3-0124-180c-51029be60114",
 			"521db0c7-78e9-36b8-a95b-da4ba8fe7f9e"}
 
-		gplog.Debug("gathering permissions from db for groups", zap.Strings("groups:", groupsarray), zap.String("reqid:", reqId))
+		l.logger.Info("gathering permissions from db for groups", zap.Strings("groups:", groupsarray), zap.String("reqid:", reqId))
 
-		groupsArr, err := l.Permissions.GetGroupsPermissions(groupsarray, reqId)
+		groupsArr, err := l.Permissions.GetGroupsPermissions(groupsarray)
 		if err != nil {
-			gplog.Error("error gathering permissions:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
-			http.Error(w, http.StatusText(500), 500)
-			return
+			l.logger.Error("error gathering permissions:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
+			panic(err)
 		}
 
 		groupsArrbytes, err := json.Marshal(groupsArr)
 		if err != nil {
-			gplog.Error("error unmarshalling groupsArrbytes:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
-			http.Error(w, http.StatusText(500), 500)
-			return
+			l.logger.Error("error unmarshalling groupsArrbytes:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
+			panic(err)
 		}
 
+		// Take the context out from the request
 		ctx := r.Context()
+
+		// Get new context with key-value "params" -> "httprouter.Params"
 		ctx = context.WithValue(ctx, "groupmappings", string(groupsArrbytes))
+
+		// Get new http.Request with the new context
 		r = r.WithContext(ctx)
 
 		// Will pass groupmappings inside the request context to enforcement
@@ -82,28 +78,27 @@ func (l *lbDataAuthzProxy) GroupPermissionsMiddleware(h http.HandlerFunc) http.H
 func (l *lbDataAuthzProxy) AuthzEnforcementMiddleware(h http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		alog := l.Log.ChildCathegory("atuhz")
-
 		reqId := middleware.GetReqID(r.Context())
 		stringgroupmappings, ok := r.Context().Value("groupmappings").(string)
 
 		if !ok {
-			alog.Error(ErrGmapExtract.Error(), logger.SetCtx("reqid", reqId))
-			http.Error(w, http.StatusText(400), 400)
-			return
+			err := errors.New("could not extract value groupmappings from context")
+			l.logger.Error("could not extract value from context:", zap.String("reqid:", reqId))
+			panic(err)
 		}
 
-		alog.Debug("enforcing authorization for context:", zap.String("context:", stringgroupmappings), zap.String("reqid:", reqId), zap.String("opaurl:", l.config.Opaurl))
+		l.logger.Info("enforcing authorization for context:", zap.String("context:", stringgroupmappings), zap.String("reqid:", reqId), zap.String("opaurl:", l.config.Opaurl))
 
-		opaResp, _ := l.Authz.GetAuthzDecision(stringgroupmappings, reqId)
+		opaResp, _ := l.Authz.GetAuthzDecision(stringgroupmappings)
 
 		if opaResp.Result.Allow == false {
-			alog.Info("user is NOT ALLOWED to access data", zap.String("reqid:", reqId))
+			l.logger.Info("user is NOT ALLOWED to access data", zap.String("reqid:", reqId))
 			http.Error(w, http.StatusText(400), 400)
 			return
+
 		} else {
 
-			alog.Debug("user is allowed to access data, will generate grouptemps", zap.String("reqid:", reqId))
+			l.logger.Info("user is allowed to access data, will generate grouptemps", zap.String("reqid:", reqId))
 
 			grouptemps := []string{}
 			for _, group := range opaResp.Result.Read_allowed {
@@ -119,10 +114,15 @@ func (l *lbDataAuthzProxy) AuthzEnforcementMiddleware(h http.HandlerFunc) http.H
 				grouptemps = append(grouptemps, "group:"+group+":temp:hot")
 			}
 
-			alog.Debug("generated grouptemps", zap.Strings("grouptemps:", grouptemps), zap.String("reqid:", reqId))
+			l.logger.Info("generated grouptemps", zap.Strings("grouptemps:", grouptemps), zap.String("reqid:", reqId))
 
+			// Take the context out from the request
 			ctx := r.Context()
+
+			// Get new context with key-value "params" -> "httprouter.Params"
 			ctx = context.WithValue(ctx, "grouptemps", grouptemps)
+
+			// Get new http.Request with the new context
 			r = r.WithContext(ctx)
 		}
 
@@ -133,21 +133,19 @@ func (l *lbDataAuthzProxy) AuthzEnforcementMiddleware(h http.HandlerFunc) http.H
 func (l *lbDataAuthzProxy) TagsFilteringMiddleware(h http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		tflog := l.Log.ChildCathegory("tagsfilter")
-
 		reqId := middleware.GetReqID(r.Context())
 
 		grouptemps, ok := r.Context().Value("grouptemps").([]string)
 
 		if !ok {
-			tflog.Error(ErrGtmpExtract.Error(), logger.SetCtx("reqid", reqId))
-			http.Error(w, http.StatusText(500), 500)
-			return
+			err := errors.New("could not extract value grouptemps from context")
+			l.logger.Error("could not extract value from context:", zap.String("reqid:", reqId))
+			panic(err)
 		}
 
 		// grouptemps := []string{"group:dom:e34ba21c74c289ba894b75ae6c76d22f:temp:warm", "group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:warm"}
 
-		tflog.Debug("pre-filter request /tags:", zap.String("RawQuery:", r.URL.RawQuery), zap.String("reqid:", reqId))
+		l.logger.Info("pre-filter request /tags:", zap.String("RawQuery:", r.URL.RawQuery), zap.String("reqid:", reqId))
 
 		grouptempfilters := ""
 
@@ -175,7 +173,7 @@ func (l *lbDataAuthzProxy) TagsFilteringMiddleware(h http.HandlerFunc) http.Hand
 
 		r.URL.RawQuery += "&expr=data:pr:ext:acl:grouptemp=~(" + grouptempfilters + ")"
 
-		tflog.Debug("filtered request /tags:", zap.String("RawQuery:", r.URL.RawQuery), zap.String("reqid:", reqId))
+		l.logger.Info("filtered request /tags:", zap.String("RawQuery:", r.URL.RawQuery), zap.String("reqid:", reqId))
 		h.ServeHTTP(w, r)
 	})
 }
@@ -184,14 +182,14 @@ func (l *lbDataAuthzProxy) RenderFilteringMiddleware(h http.HandlerFunc) http.Ha
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		reqId := middleware.GetReqID(r.Context())
-		rflog.Debug("pre-filter request /render:", zap.String("RawQuery:", r.URL.RawQuery), zap.String("reqid:", reqId))
+		l.logger.Info("pre-filter request /render:", zap.String("RawQuery:", r.URL.RawQuery), zap.String("reqid:", reqId))
 
 		grouptemps, ok := r.Context().Value("grouptemps").([]string)
 
 		if !ok {
-			rflog.Error(ErrGtmpExtract.Error(), logger.KeyVal("reqid", reqId))
-			http.Error(w, http.StatusText(500), 500)
-			return
+			err := errors.New("could not extract value grouptemps from context")
+			l.logger.Error("could not extract value from context:", zap.String("reqid:", reqId))
+			panic(err)
 		}
 
 		// grouptemps := []string{"group:dom:e34ba21c74c289ba894b75ae6c76d22f:temp:warm", "group:ou:e34ba21c74c289ba894b75ae6c76d22f:temp:warm"}
@@ -205,16 +203,14 @@ func (l *lbDataAuthzProxy) RenderFilteringMiddleware(h http.HandlerFunc) http.Ha
 		}
 
 		urlParsed, err := url.ParseQuery(r.URL.RawQuery)
+
 		if err != nil {
-			rflog.Error("error parsing rawquery:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
-			http.Error(w, http.StatusText(500), 500)
-			return
+			panic(err)
 		}
 
 		exprs, err := expr.ParseMany(urlParsed["target"])
+
 		if err != nil {
-			rflog.Error("error parsing target:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
-			http.Error(w, http.StatusText(500), 500)
 			panic(err)
 		}
 
@@ -228,7 +224,7 @@ func (l *lbDataAuthzProxy) RenderFilteringMiddleware(h http.HandlerFunc) http.Ha
 		urlParsed.Add("target", targetstr) // Adds recomputed target
 
 		r.URL.RawQuery = urlParsed.Encode()
-		rflog.Debug("filtered request /render:", zap.String("RawQuery:", r.URL.RawQuery), zap.String("reqid:", reqId))
+		l.logger.Info("filtered request /render:", zap.String("RawQuery:", r.URL.RawQuery), zap.String("reqid:", reqId))
 
 		h.ServeHTTP(w, r)
 	})
@@ -236,6 +232,6 @@ func (l *lbDataAuthzProxy) RenderFilteringMiddleware(h http.HandlerFunc) http.Ha
 
 func (l *lbDataAuthzProxy) ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	reqId := middleware.GetReqID(r.Context())
-	mtlog.Debug("sending request to metrictank", zap.String("reqid:", reqId))
+	l.logger.Info("sending request to metrictank", zap.String("reqid:", reqId))
 	l.reverseproxy.ServeHTTP(w, r)
 }

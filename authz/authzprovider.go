@@ -2,29 +2,23 @@ package authz
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
-	"lbauthdata/config"
-	"lbauthdata/logger"
 	"lbauthdata/model"
-
-	"go.uber.org/zap"
+	"lbauthdata/server"
 )
-
-var log = logger.GetLogger("authz")
 
 type AuthzClient struct {
 	httpclient *http.Client
 	opaurl     string
 }
 
-func NewHttpAuthzProvider(config *config.ServerConfig) (*AuthzClient, error) {
-	log.Info("Creating database connection:", zap.String("dbconfig:", config.PostgresConfig))
+func NewHttpAuthzProvider(config *server.Config) (*AuthzClient, error) {
+	// l.logger.Info("Creating database connection:", zap.String("dbconfig:", l.config.PostgresConfig))
 
 	// Initializing http client
 	httpclient := &http.Client{
@@ -36,10 +30,11 @@ func NewHttpAuthzProvider(config *config.ServerConfig) (*AuthzClient, error) {
 		opaurl:     config.Opaurl}, nil
 }
 
-func (ac *AuthzClient) GetAuthzDecision(stringgroupmappings string, reqId string) (model.OpaResp, error) {
+func (ac *AuthzClient) GetAuthzDecision(stringgroupmappings string) (model.OpaResp, error) {
 	opaurl, err := url.Parse(ac.opaurl)
 	if err != nil {
-		return model.OpaResp{}, fmt.Errorf("could not validate opa url: %w", err)
+		// l.logger.Error("could not validate opa url:", zap.String("reqid:", reqId))
+		panic(err)
 	}
 
 	req, err := http.NewRequest("POST", opaurl.String(), strings.NewReader(`{ "input" :`+stringgroupmappings+`}`))
@@ -48,19 +43,22 @@ func (ac *AuthzClient) GetAuthzDecision(stringgroupmappings string, reqId string
 	// req.Header.Set("Accept", "application/json")
 	resp, err := ac.httpclient.Do(req)
 	if err != nil {
-		return model.OpaResp{}, fmt.Errorf("opa http req failed: %w", err)
+		// l.logger.Error("opa call failed:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
+		panic(err)
 	}
 
 	data, err := ioutil.ReadAll(resp.Body)
-	log.Debug("OPA judgement:", zap.String("response:", string(data)), zap.String("reqid:", reqId))
+	// l.logger.Info("OPA judgement:", zap.String("response:", string(data)), zap.String("reqid:", reqId))
 
 	if err != nil {
-		return model.OpaResp{}, fmt.Errorf("opa read resp failed: %w", err)
+		// l.logger.Error("opa call failed:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
+		panic(err)
 	}
 
 	var opaResp model.OpaResp
 	if err := json.Unmarshal(data, &opaResp); /*json.NewDecoder(resp.Body).Decode(&orgResp);*/ err != nil {
-		return model.OpaResp{}, fmt.Errorf("opa resp unmarshal failed: %w", err)
+		// l.logger.Error("opa resp unmarshal failed:", zap.String("error:", err.Error()), zap.String("reqid:", reqId))
+		panic(err)
 	}
 
 	return opaResp, nil

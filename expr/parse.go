@@ -7,8 +7,9 @@ import (
 	"strconv"
 	"strings"
 
+	//	"github.com/grafana/metrictank/api/models"
 	"github.com/grafana/metrictank/util"
-	"github.com/rs/zerolog/log"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -392,7 +393,7 @@ func extractMetric(m string) string {
 	}
 
 	if quoteChar != 0 {
-		log.Debug("extractMetric: encountered unterminated string literal in " + m)
+		log.Warnf("extractMetric: encountered unterminated string literal in %s", m)
 		return ""
 	}
 
