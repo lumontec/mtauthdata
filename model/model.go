@@ -2,11 +2,6 @@ package model
 
 type Point []float64
 
-// type Point struct {
-// 	Val float64 `json:"val,omitempty"`
-// 	Ts  uint32  `json:"ts,omitempty"`
-// }
-
 type Serie struct {
 	Target     string            `json:"target,omitempty"` // for fetched data, set from models.Req.Target, i.e. the metric graphite key. for function output, whatever should be shown as target string (legend)
 	Datapoints []Point           `json:"datapoints,omitempty"`

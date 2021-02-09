@@ -1,8 +1,8 @@
-# **LBAUTHDATA** 
+# **MTAUTHDATA** 
 MetricTank ABAC authorization proxy enforcer for graphite metric queries
 
 ## Architecture 
-Lbauthdata is composed of the following modules
+Mtauthdata is composed of the following modules
 - lbDataAuthzProxy: Http proxy module implemented by lightweight go-chi module 
 - PermissionProvider: DInjectable permission provider gathering user permissions and attributes
 - AuthzProvider: DInjectable authorization provider enforcing policy decisions 
